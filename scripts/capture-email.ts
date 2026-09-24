@@ -1,20 +1,29 @@
 /**
- * Saves a real received email from Resend as a fixture, for building a
- * platform parser against it:
+ * Saves a real received email from Resend, untouched, as a PRIVATE capture:
  *
  *   npm run capture:email -- <resend-email-id> <platform>
  *
- * Writes fixtures/emails/<platform>/<email-id>.json and never overwrites.
- * Captured alerts contain personal data (your address, maybe your name):
- * review and redact before committing.
+ * Writes fixtures/private/emails/<platform>/<email-id>.json (ignored by git)
+ * and never overwrites an existing capture. Raw captures contain personal
+ * data and tracking URLs. A reviewed, redacted copy goes to
+ * fixtures/emails/<platform>/ by hand; only that one is committed and tested.
  */
-import { mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { SOURCES, type Source } from "@/lib/domain/apartment";
 import { readResendEnv } from "@/lib/ingest/env";
 import { incomingEmailToFixture } from "@/lib/ingest/fixtureFile";
 import { fetchReceivedEmail } from "@/lib/ingest/resend";
 import { getResend } from "@/lib/ingest/resendClient";
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function main(): Promise<void> {
   const [emailId, platform] = process.argv.slice(2);
@@ -24,16 +33,24 @@ async function main(): Promise<void> {
     );
   }
 
+  const dir = join("fixtures", "private", "emails", platform as Source);
+  const file = join(dir, `${emailId.replace(/[^A-Za-z0-9_-]/g, "_")}.json`);
+  if (await exists(file)) {
+    throw new Error(`${file} already exists; captures are never overwritten.`);
+  }
+
   const config = readResendEnv();
   const email = await fetchReceivedEmail(getResend(config), emailId, new Date());
 
-  const dir = join("fixtures", "emails", platform as Source);
   await mkdir(dir, { recursive: true });
-  const file = join(dir, `${emailId.replace(/[^A-Za-z0-9_-]/g, "_")}.json`);
+  // "wx" fails if the file appeared meanwhile: still never overwrites.
   await writeFile(file, `${JSON.stringify(incomingEmailToFixture(email), null, 2)}\n`, {
     flag: "wx",
   });
-  console.log(`Saved ${file}. Review and redact personal data before committing.`);
+  console.log(
+    `Saved private capture ${file} (not committed). ` +
+      `Put a reviewed, redacted copy in fixtures/emails/${platform}/ for tests.`,
+  );
 }
 
 main().catch((error: unknown) => {

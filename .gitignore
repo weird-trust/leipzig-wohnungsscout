@@ -30,6 +30,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# raw captured emails: personal data and tracking URLs, never committed
+/fixtures/private/
+
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example

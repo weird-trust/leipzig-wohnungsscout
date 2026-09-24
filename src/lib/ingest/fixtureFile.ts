@@ -3,8 +3,10 @@ import { z } from "zod";
 import type { IncomingEmail } from "@/lib/domain/email";
 
 /**
- * JSON file format for email fixtures: fixtures/emails/<platform>/ (real,
- * captured with `npm run capture:email`) and fixtures/synthetic/emails/.
+ * JSON file format for email fixtures: raw private captures
+ * (fixtures/private/emails/, from `npm run capture:email`), reviewed and
+ * redacted real fixtures (fixtures/emails/<platform>/) and synthetic ones
+ * (fixtures/synthetic/emails/).
  */
 export const fixtureFileSchema = z.object({
   /** Real captures keep Resend's email_id; otherwise derived from the content. */

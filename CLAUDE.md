@@ -53,22 +53,17 @@ Do not implement these unless explicitly requested:
 
 ## Email fixtures
 
-Real apartment alert emails belong in:
-
 ```text
-fixtures/emails/<platform>/
+fixtures/private/emails/<platform>/   raw captures from `npm run capture:email`, untouched, gitignored
+fixtures/emails/<platform>/           reviewed + redacted copies: committed, used by tests
+fixtures/synthetic/                   invented data, never a platform format
 ```
 
-Examples:
-
-```text
-fixtures/emails/immowelt/
-fixtures/emails/immoscout/
-fixtures/emails/kleinanzeigen/
-fixtures/emails/lwb/
-```
-
-Do not create platform-specific parsing logic until at least one real fixture exists for that platform.
+* Raw captures contain personal data (addresses, names, search-alert links) and tracking URLs.
+* Never commit anything under `fixtures/private/`, and never edit a raw capture. The capture script never overwrites.
+* To create a test fixture, copy a private capture to `fixtures/emails/<platform>/`, then review and redact it by hand. Keep the listing structure intact.
+* Tests and parsers use only `fixtures/emails/`.
+* Do not create platform-specific parsing logic until at least one reviewed fixture exists for that platform.
 
 ## Architecture
 
@@ -216,11 +211,12 @@ Other rules:
 
 Fixtures:
 
-* `fixtures/emails/<platform>/*.json` holds real captured alerts only, using the format in `src/lib/ingest/fixtureFile.ts`.
-* Captures contain personal data; review and redact them before committing.
+* All fixtures use the format in `src/lib/ingest/fixtureFile.ts`.
+* `capture:email` writes raw captures to the gitignored `fixtures/private/emails/<platform>/`.
+* Reviewed and redacted copies go in `fixtures/emails/<platform>/` (see "Email fixtures").
 * `fixtures/synthetic/emails/` holds invented test emails, never platform formats.
 
-Adding a platform parser: capture a real email, add it as a fixture, implement `ApartmentParser` in `src/lib/parsers/`, register it in `PLATFORM_PARSERS`, and add tests against the fixture.
+Adding a platform parser: capture a real email, add a redacted copy to `fixtures/emails/<platform>/`, implement `ApartmentParser` in `src/lib/parsers/`, register it in `PLATFORM_PARSERS`, and add tests against the fixture.
 
 ## Commands
 
@@ -235,7 +231,7 @@ npm test             # vitest run (all tests once)
 npm run test:watch   # vitest in watch mode
 npm run seed         # upsert synthetic apartments (needs .env.local)
 npm run ingest:fixture -- <file.json> [--dry-run]   # run a fixture through the pipeline (--dry-run: no DB)
-npm run capture:email -- <resend-email-id> <platform> # save a real received email as a fixture
+npm run capture:email -- <resend-email-id> <platform> # save a raw capture to fixtures/private/ (gitignored)
 npx vitest run src/lib/scoring.test.ts   # single test file
 npx vitest run -t "name"                 # tests matching a name
 ```
