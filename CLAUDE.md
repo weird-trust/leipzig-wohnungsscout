@@ -95,7 +95,11 @@ Pure core (no I/O, never imports Supabase):
 
 * `src/lib/domain/`: `Apartment`, `NewApartment`, `ListingData`, enums, `IncomingEmail` (provider-independent), `StoredEmail`. Favorite is `isFavorite`, not an `ApartmentStatus`.
 * `src/lib/sourceDetection.ts`: sender domain first, then majority of body link hosts; domains in `SOURCE_DOMAINS`.
-* `src/lib/parsers/`: `parseEmail()` tries `PLATFORM_PARSERS` (currently empty), then `genericParser` (returns `[]`). It never throws; parser errors are returned as `failures` with status `parsed | unrecognized | failed`.
+* `src/lib/parsers/`: `parseEmail()` tries `PLATFORM_PARSERS`, then `genericParser` (returns `[]`).
+  * `PLATFORM_PARSERS` currently holds only `immoscout.ts`. It parses the **plain-text** part and understands only the structure in `fixtures/emails/immoscout/alert-01.json`.
+  * `immoscout.ts` stores `sourceUrl` without its query string (real alerts carry personal tracking parameters) and takes `sourceId` from `/email/expose/<digits>`.
+  * `immoscout.ts` sets no structured features. That alert format has no warm rent, so ImmoScout apartments get no fingerprint.
+  * Each fixture test is a regression test: changing its expectations needs a deliberate parser migration. It never throws; parser errors are returned as `failures` with status `parsed | unrecognized | failed`.
 * `src/lib/features.ts`: per-feature term lists in `FEATURE_RULES`; any positive match wins, otherwise negated match → `false`, otherwise `null`.
 * `src/lib/scoring.ts`: all weights in `SCORING`; returns `{ score, rawScore, breakdown }`. Scores are computed on read, not stored.
 * `src/lib/fingerprint.ts`: rounding steps in `FINGERPRINT_STEPS`; returns `null` if any input is unknown.
