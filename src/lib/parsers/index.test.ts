@@ -54,7 +54,7 @@ describe("genericParser", () => {
 
 describe("parseEmail", () => {
   it("registers only parsers backed by real fixtures", () => {
-    expect(PLATFORM_PARSERS.map((parser) => parser.name)).toEqual(["immoscout"]);
+    expect(PLATFORM_PARSERS.map((parser) => parser.name)).toEqual(["immoscout", "kleinanzeigen"]);
   });
 
   it("marks an email as unrecognized when only the fallback runs", () => {

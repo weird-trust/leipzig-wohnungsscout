@@ -96,7 +96,9 @@ Pure core (no I/O, never imports Supabase):
 * `src/lib/domain/`: `Apartment`, `NewApartment`, `ListingData`, enums, `IncomingEmail` (provider-independent), `StoredEmail`. Favorite is `isFavorite`, not an `ApartmentStatus`.
 * `src/lib/sourceDetection.ts`: sender domain first, then majority of body link hosts; domains in `SOURCE_DOMAINS`.
 * `src/lib/parsers/`: `parseEmail()` tries `PLATFORM_PARSERS`, then `genericParser` (returns `[]`).
-  * `PLATFORM_PARSERS` currently holds only `immoscout.ts`. It parses the **plain-text** part and understands only the structure in `fixtures/emails/immoscout/alert-01.json`.
+  * `PLATFORM_PARSERS` holds `immoscout.ts` and `kleinanzeigen.ts`. Both parse only the **plain-text** part and understand only the structures in their real fixtures under `fixtures/emails/<platform>/`.
+  * `kleinanzeigen.ts`: each `Anzeige ansehen` + `[…/s-anzeige/<digits>]` pair anchors one listing. The title is the standalone line after the `Bild zur Anzeige` image line, and the image comes only from `img.kleinanzeigen.de`. Rooms come only from an unambiguous `<n> Zi.` in the title.
+  * `kleinanzeigen.ts` deliberately leaves `rentCold`/`rentWarm` null (the displayed price has no rent type), and `district`, `address` and `sqm` null (not in the alert; "in Connewitz" in the title is not interpreted). "Von Privat" is not stored.
   * `immoscout.ts` stores `sourceUrl` without its query string (real alerts carry personal tracking parameters) and takes `sourceId` from `/email/expose/<digits>`.
   * `immoscout.ts` sets no structured features. That alert format has no warm rent, so ImmoScout apartments get no fingerprint.
   * Each fixture test is a regression test: changing its expectations needs a deliberate parser migration. It never throws; parser errors are returned as `failures` with status `parsed | unrecognized | failed`.

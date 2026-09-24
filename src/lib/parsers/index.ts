@@ -1,6 +1,7 @@
 import type { IncomingEmail } from "@/lib/domain/email";
 import { genericParser } from "@/lib/parsers/generic";
 import { immoscoutParser } from "@/lib/parsers/immoscout";
+import { kleinanzeigenParser } from "@/lib/parsers/kleinanzeigen";
 import type {
   ApartmentParser,
   ParseOutcome,
@@ -12,7 +13,8 @@ import type {
  * fixtures in fixtures/emails/<platform>/.
  */
 export const PLATFORM_PARSERS: readonly ApartmentParser[] = [
-  immoscoutParser, // fixtures/emails/immoscout/alert-01.json
+  immoscoutParser, // fixtures/emails/immoscout/
+  kleinanzeigenParser, // fixtures/emails/kleinanzeigen/
 ];
 
 function errorMessage(error: unknown): string {
