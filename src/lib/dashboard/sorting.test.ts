@@ -15,9 +15,9 @@ const day = (d: number) => new Date(`2026-09-${String(d).padStart(2, "0")}T10:00
 describe("sortApartments", () => {
   it("sorts by score, highest first", () => {
     const items = [
-      scored({ id: idOf(1), rooms: 3 }), // 5
-      scored({ id: idOf(2), rooms: 3, topFloor: true }), // 30
-      scored({ id: idOf(3) }), // 0
+      scored({ id: idOf(1), rooms: 3 }), // 35
+      scored({ id: idOf(2), rooms: 3, topFloor: true }), // 55
+      scored({ id: idOf(3) }), // 25 (base only)
     ];
     expect(ids(sortApartments(items, "score"))).toEqual([idOf(2), idOf(1), idOf(3)]);
   });

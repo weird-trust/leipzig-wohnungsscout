@@ -1,29 +1,36 @@
 @import "tailwindcss";
 
 /*
- * Design tokens. Neutral paper/ink palette with one accent (signal red).
- * Contrast: --muted and --faint both stay above 4.5:1 on --bg and --surface,
- * so de-emphasized text remains readable.
+ * Design tokens. Warm paper / ink palette with one restrained accent.
+ * Contrast: --muted and --faint both stay above 4.5:1 on --bg, so
+ * de-emphasized text remains readable. --line is for hairlines only.
  */
 :root {
-  --bg: #f6f5f1;
-  --surface: #ffffff;
-  --fg: #111111;
-  --muted: #555555;
-  --faint: #6b6b6b;
-  --line: #d8d6d0;
-  --accent: #c20e1a;
+  --bg: #f5f3ef;
+  --surface: #ebe8e2;
+  --fg: #171614;
+  --muted: #57544f;
+  --faint: #625e58;
+  --line: #d9d5ce;
+  --accent: #b3401c;
+  /* Background heat fields: warm yellow, strongest at the core. */
+  --heat-core: rgb(255 204 0 / 0.45);
+  --heat-mid: rgb(255 222 89 / 0.3);
+  --grain-opacity: 0.16;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #111111;
-    --surface: #191919;
-    --fg: #f1f0ec;
-    --muted: #b8b6b0;
-    --faint: #9c9a95;
-    --line: #34332f;
-    --accent: #ff6b6b;
+    --bg: #171b10;
+    --surface: #21271a;
+    --fg: #eef0e5;
+    --muted: #b2b7a0;
+    --faint: #959b83;
+    --line: #313824;
+    --accent: #f08c66;
+    --heat-core: rgb(255 196 0 / 0.2);
+    --heat-mid: rgb(255 210 60 / 0.08);
+    --grain-opacity: 0.1;
   }
 }
 
@@ -35,12 +42,42 @@
   --color-faint: var(--faint);
   --color-line: var(--line);
   --color-accent: var(--accent);
-  --font-sans: "Helvetica Neue", Helvetica, ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", Arial, sans-serif;
+  --font-sans: var(--font-diatype), ui-sans-serif, system-ui, -apple-system, "Helvetica Neue",
+    Arial, sans-serif;
+  --font-mono: var(--font-diatype), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/*
+ * The only four type sizes: meta, text, titles, display.
+ * `--text-*: initial` removes Tailwind's default scale so no others creep in.
+ */
+@theme {
+  --text-*: initial;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.45;
+  --text-base: 1rem;
+  --text-base--line-height: 1.55;
+  --text-lg: 1.5rem;
+  --text-lg--line-height: 1.2;
+  --text-xl: clamp(2.5rem, 1.9rem + 2.2vw, 3.5rem);
+  --text-xl--line-height: 1.02;
+}
+
+/* The variable font's MONO axis: 100 = monospaced, 50 = semi-mono. */
+@utility font-mono {
+  font-family: var(--font-mono);
+  font-variation-settings: "MONO" 100;
+}
+
+@utility font-semimono {
+  font-variation-settings: "MONO" 50;
 }
 
 html {
   color-scheme: light dark;
+  /* Only real weights and styles from the variable font; never faked. */
+  font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -48,9 +85,151 @@ body {
   color: var(--fg);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: "kern";
 }
 
 :focus-visible {
   outline: 2px solid var(--fg);
-  outline-offset: 2px;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Native disclosures: hide the default marker, the summary shows its own. */
+summary {
+  list-style: none;
+  cursor: pointer;
+}
+summary::-webkit-details-marker {
+  display: none;
+}
+
+/*
+ * One listing row. Named areas so the markup can stay in reading order
+ * (title first) while the score sits left on wider screens.
+ */
+.listing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "head score"
+    "facts facts"
+    "features features"
+    "meta meta";
+  column-gap: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .listing {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    grid-template-areas:
+      "score head"
+      "score facts"
+      "score features"
+      "score meta";
+    column-gap: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .listing {
+    grid-template-columns: 7rem minmax(0, 1fr) 11rem 12.5rem;
+    grid-template-areas:
+      "score head facts features"
+      "score meta meta meta";
+    column-gap: 2.5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .listing {
+    grid-template-columns: 8rem minmax(0, 1fr) 12rem 13rem;
+    column-gap: 3.5rem;
+  }
+}
+
+/*
+ * Heatmap background: three soft radial fields that drift and breathe very
+ * slowly (transform only, so it stays on the compositor), with static grain
+ * on top. Fixed behind all content; purely decorative.
+ */
+.heatmap {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.heatmap span {
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    var(--heat-core),
+    var(--heat-mid) 45%,
+    transparent 100%
+  );
+  will-change: transform;
+  animation: heat-drift 60s ease-in-out infinite alternate;
+}
+
+.heatmap span:nth-child(1) {
+  top: -30vmax;
+  right: -20vmax;
+}
+
+.heatmap span:nth-child(2) {
+  top: 30vh;
+  left: -35vmax;
+  width: 60vmax;
+  height: 60vmax;
+  animation-duration: 80s;
+  animation-delay: -20s;
+}
+
+.heatmap span:nth-child(3) {
+  bottom: -40vmax;
+  right: 5vw;
+  width: 55vmax;
+  height: 55vmax;
+  animation-duration: 95s;
+  animation-delay: -45s;
+}
+
+.heatmap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.45 0 0 0 0 0.35 0 0 0 1.4 -0.35'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+@keyframes heat-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(8vmax, 6vmax, 0) scale(1.15);
+  }
+  100% {
+    transform: translate3d(-6vmax, 10vmax, 0) scale(0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heatmap span {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

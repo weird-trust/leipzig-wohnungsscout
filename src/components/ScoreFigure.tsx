@@ -1,26 +1,20 @@
 import { MAX_SCORE } from "@/lib/scoring";
 
-/** The computed score as a large figure with a thin proportional rule. */
-export function ScoreFigure({ score, size = "md" }: { score: number; size?: "md" | "lg" }) {
-  const strong = score >= 80;
+/** The computed score as a large, light typographic figure: "94 /100". */
+export function ScoreFigure({ score }: { score: number }) {
   return (
-    <div className={size === "lg" ? "w-full" : "w-16"}>
-      <p
-        className={`leading-none font-semibold tabular-nums ${
-          size === "lg" ? "text-7xl" : "text-4xl"
-        } ${strong ? "text-accent" : "text-fg"}`}
+    <p className="flex items-baseline gap-1 leading-none">
+      <span
+        className={`font-mono text-xl font-light tracking-[-0.06em] tabular-nums ${
+          score > 0 ? "text-fg" : "text-faint"
+        }`}
       >
         {score}
-        <span className="sr-only"> von {MAX_SCORE} Punkten</span>
-      </p>
-      <div aria-hidden="true" className="mt-2 h-0.5 w-full bg-line">
-        <div className="h-full bg-fg" style={{ width: `${(score / MAX_SCORE) * 100}%` }} />
-      </div>
-      {size === "lg" && (
-        <p aria-hidden="true" className="mt-1 text-xs text-muted tabular-nums">
-          von {MAX_SCORE}
-        </p>
-      )}
-    </div>
+      </span>
+      <span aria-hidden="true" className="font-mono text-sm text-faint tabular-nums">
+        /{MAX_SCORE}
+      </span>
+      <span className="sr-only">von {MAX_SCORE} Punkten</span>
+    </p>
   );
 }

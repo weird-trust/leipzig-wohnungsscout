@@ -101,7 +101,7 @@ Pure core (no I/O, never imports Supabase):
   * `immoscout.ts` sets no structured features. That alert format has no warm rent, so ImmoScout apartments get no fingerprint.
   * Each fixture test is a regression test: changing its expectations needs a deliberate parser migration. It never throws; parser errors are returned as `failures` with status `parsed | unrecognized | failed`.
 * `src/lib/features.ts`: per-feature term lists in `FEATURE_RULES`; any positive match wins, otherwise negated match → `false`, otherwise `null`.
-* `src/lib/scoring.ts`: all weights in `SCORING`; returns `{ score, rawScore, breakdown }`. Scores are computed on read, not stored.
+* `src/lib/scoring.ts`: all weights in `SCORING`; returns `{ score, rawScore, breakdown }`. Scores are computed on read, not stored. The score is a ranking signal: it starts from a base score, unknown/false values are neutral, building type is not scored, and the result is clamped to 0–100. These weights deliberately supersede the "suggested weights" in `docs/product-spec.md`.
 * `src/lib/fingerprint.ts`: rounding steps in `FINGERPRINT_STEPS`; returns `null` if any input is unknown.
 
 ## Database

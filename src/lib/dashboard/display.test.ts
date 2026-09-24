@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatAge,
   formatEuro,
   formatFloor,
   formatRooms,
   formatSqm,
   paragraphs,
+  primaryRent,
   rentPerSqm,
   triStateKey,
 } from "@/lib/dashboard/display";
@@ -56,5 +58,32 @@ describe("paragraphs", () => {
       "Zweiter Absatz.",
     ]);
     expect(paragraphs(null)).toEqual([]);
+  });
+});
+
+describe("primaryRent", () => {
+  it("prefers warm rent and labels the basis", () => {
+    expect(primaryRent({ rentWarm: 1500, rentCold: 1200 })?.text).toMatch(/^1\.500\s€ warm$/);
+    expect(primaryRent({ rentWarm: null, rentCold: 1349 })?.text).toMatch(/^1\.349\s€ kalt$/);
+    expect(primaryRent({ rentWarm: null, rentCold: null })).toBeNull();
+  });
+});
+
+describe("formatAge", () => {
+  const now = new Date("2026-09-24T12:00:00Z");
+  const ago = (minutes: number) => new Date(now.getTime() - minutes * 60_000);
+
+  it.each([
+    [0, "gerade eben"],
+    [28, "vor 28 Min."],
+    [180, "vor 3 Std."],
+    [24 * 60, "gestern"],
+    [4 * 24 * 60, "vor 4 Tagen"],
+  ])("%d minutes → %s", (minutes, expected) => {
+    expect(formatAge(ago(minutes), now)).toBe(expected);
+  });
+
+  it("falls back to the date after a week", () => {
+    expect(formatAge(ago(10 * 24 * 60), now)).toBe("14.09.2026");
   });
 });

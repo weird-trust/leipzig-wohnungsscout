@@ -32,7 +32,8 @@ describe("synthetic seed data", () => {
 
   it("contains an apartment over budget", () => {
     const { apartment } = byId("synthetic-over-budget");
-    expect(scoreApartment(apartment).breakdown.map((i) => i.rule)).toContain("warmRentOverMax");
+    expect(apartment.rentWarm).toBe(1750);
+    expect(scoreApartment(apartment).breakdown.map((i) => i.rule)).toContain("warmRentOver");
   });
 
   it("contains an apartment with only unknown features", () => {

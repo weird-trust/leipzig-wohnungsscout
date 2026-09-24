@@ -1,4 +1,5 @@
-import type { ApartmentFeatures, TriState } from "@/lib/domain/apartment";
+import { CheckIcon } from "@/components/Icons";
+import type { ApartmentFeatures } from "@/lib/domain/apartment";
 import {
   buildingTypeLabel,
   DISPLAY_FEATURES,
@@ -7,74 +8,92 @@ import {
   triStateKey,
 } from "@/lib/dashboard/display";
 
-const SYMBOL = { yes: "✓", no: "×", unknown: "?" } as const;
+type StateKey = keyof typeof TRI_STATE_TEXT;
 
-const STYLE = {
-  yes: "text-fg font-medium",
+/** Present: high contrast. Absent: subdued. Unknown: lightest. */
+const STYLE: Record<StateKey, string> = {
+  yes: "text-fg",
   no: "text-muted",
   unknown: "text-faint",
-} as const;
+};
 
-function FeatureItem({
-  label,
-  value,
-  verbose,
-}: {
-  label: string;
-  value: TriState;
-  verbose: boolean;
-}) {
-  const key = triStateKey(value);
+/** ✓ present, – absent, ? unknown. The mark and the (screen-reader) text carry the meaning, not color. */
+function Mark({ state }: { state: StateKey }) {
   return (
-    <li className={`flex items-baseline gap-1.5 ${STYLE[key]}`}>
-      <span aria-hidden="true" className="w-3 text-center font-mono">
-        {SYMBOL[key]}
-      </span>
-      <span className={key === "unknown" ? "italic" : undefined}>{label}</span>
-      {verbose ? (
-        <span className="text-xs text-faint">{TRI_STATE_TEXT[key]}</span>
-      ) : (
-        <span className="sr-only">: {TRI_STATE_TEXT[key]}</span>
-      )}
-    </li>
+    <span aria-hidden="true" className="inline-flex w-3.5 shrink-0 justify-center font-mono">
+      {state === "yes" ? <CheckIcon /> : state === "no" ? "–" : "?"}
+    </span>
   );
 }
 
+interface Item {
+  label: string;
+  state: StateKey;
+}
+
+function items(features: ApartmentFeatures): Item[] {
+  const building = buildingTypeLabel(features.buildingType);
+  return [
+    ...DISPLAY_FEATURES.map((feature) => ({
+      label: FEATURE_LABELS[feature],
+      state: triStateKey(features[feature]),
+    })),
+    { label: building ?? "Altbau / Neubau", state: building ? "yes" : "unknown" },
+  ];
+}
+
 /**
- * Tri-state features: ✓ present, × explicitly absent, ? unknown. The symbol
- * and (for screen readers) text carry the meaning, not color. Unknown is
- * shown, but visually quieter.
+ * Tri-state features in a fixed order, so rows can be compared by eye.
+ * Compact (dashboard): on small screens the unknown ones collapse into
+ * one quiet "Unbekannt: …" line. Verbose (detail page): the state is
+ * also spelled out.
  */
 export function FeatureList({
   features,
   verbose = false,
 }: {
   features: ApartmentFeatures;
-  /** Show the state as words too (detail page). */
   verbose?: boolean;
 }) {
-  const building = buildingTypeLabel(features.buildingType);
+  const list = items(features);
+
+  if (verbose) {
+    return (
+      <ul className="divide-y divide-line border-y border-line">
+        {list.map((item) => (
+          <li key={item.label} className={`flex items-baseline gap-3 py-2.5 ${STYLE[item.state]}`}>
+            <Mark state={item.state} />
+            <span className="flex-1">{item.label}</span>
+            <span className="text-sm text-faint">{TRI_STATE_TEXT[item.state]}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  const unknown = list.filter((item) => item.state === "unknown");
   return (
-    <ul
-      className={
-        verbose
-          ? "grid gap-1.5 text-sm sm:grid-cols-2"
-          : "flex flex-wrap gap-x-4 gap-y-1 text-sm"
-      }
-    >
-      {DISPLAY_FEATURES.map((feature) => (
-        <FeatureItem
-          key={feature}
-          label={FEATURE_LABELS[feature]}
-          value={features[feature]}
-          verbose={verbose}
-        />
-      ))}
-      <FeatureItem
-        label={building ?? "Altbau / Neubau"}
-        value={building ? true : null}
-        verbose={verbose}
-      />
-    </ul>
+    <div className="text-sm">
+      <ul className="flex flex-wrap gap-x-4 gap-y-1 lg:flex-col lg:gap-y-0.5">
+        {list.map((item) => (
+          <li
+            key={item.label}
+            className={`flex items-baseline gap-1.5 ${STYLE[item.state]} ${
+              item.state === "unknown" ? "max-sm:hidden" : ""
+            }`}
+          >
+            <Mark state={item.state} />
+            <span>{item.label}</span>
+            <span className="sr-only">: {TRI_STATE_TEXT[item.state]}</span>
+          </li>
+        ))}
+      </ul>
+      {unknown.length > 0 && (
+        <p className="mt-1 text-faint sm:hidden">
+          <span aria-hidden="true" className="font-mono">? </span>
+          Unbekannt: {unknown.map((item) => item.label).join(", ")}
+        </p>
+      )}
+    </div>
   );
 }

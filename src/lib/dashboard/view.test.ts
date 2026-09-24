@@ -26,7 +26,7 @@ describe("buildDashboardView", () => {
   it("attaches the computed score to each item", () => {
     const view = buildDashboardView(apartments, parseDashboardQuery({}));
     const first = view.items.find((i) => i.apartment.id === idOf(1));
-    expect(first?.score.score).toBe(20); // 3 rooms + balcony
+    expect(first?.score.score).toBe(45); // base 25 + 3 rooms 10 + balcony 10
   });
 
   it("lists each known district once, sorted", () => {

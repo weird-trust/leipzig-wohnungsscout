@@ -92,6 +92,10 @@ export function formatEuro(value: number): string {
   return euro.format(value);
 }
 
+export function formatEuroCents(value: number): string {
+  return euroCents.format(value);
+}
+
 export function formatRooms(value: number): string {
   return `${decimal.format(value)} Zi.`;
 }
@@ -114,7 +118,7 @@ export function rentPerSqm(
   if (rent === null) return null;
   const basis = apartment.rentWarm !== null ? "warm" : "kalt";
   const value = rent / sqm;
-  return { value, basis, text: `${euroCents.format(value)}/m² ${basis}` };
+  return { value, basis, text: `${formatEuroCents(value)}/m² ${basis}` };
 }
 
 /** Splits plain-text descriptions into paragraphs on blank lines. */
@@ -131,4 +135,29 @@ export function formatFloor(floor: number): string {
   if (floor === 0) return "EG";
   if (floor < 0) return "UG";
   return `${floor}. OG`;
+}
+
+/** The rent to headline: warm when known, otherwise cold, labelled accordingly. */
+export function primaryRent(
+  apartment: Pick<Apartment, "rentWarm" | "rentCold">,
+): { value: number; basis: "warm" | "kalt"; text: string } | null {
+  const rent = apartment.rentWarm ?? apartment.rentCold;
+  if (rent === null) return null;
+  const basis = apartment.rentWarm !== null ? "warm" : "kalt";
+  return { value: rent, basis, text: `${formatEuro(rent)} ${basis}` };
+}
+
+const relative = new Intl.RelativeTimeFormat("de-DE", { numeric: "auto", style: "short" });
+const shortDate = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeZone: "Europe/Berlin" });
+
+/** "gerade eben", "vor 28 Min.", "vor 3 Std.", "gestern", "vor 4 Tagen", then the date. */
+export function formatAge(value: Date, now: Date): string {
+  const minutes = Math.floor((now.getTime() - value.getTime()) / 60_000);
+  if (minutes < 1) return "gerade eben";
+  if (minutes < 60) return relative.format(-minutes, "minute");
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return relative.format(-hours, "hour");
+  const days = Math.floor(hours / 24);
+  if (days < 7) return relative.format(-days, "day");
+  return shortDate.format(value);
 }
