@@ -1,0 +1,9 @@
+{
+  "providerMessageId": "synthetic-generic-forwarded-alert",
+  "receivedAt": "2026-09-24T08:00:00Z",
+  "from": "Ich <ich@example.org>",
+  "to": ["wohnungen@inbound.example.com"],
+  "subject": "Fwd: SYNTHETISCH – Neue Wohnungen für Ihren Suchauftrag",
+  "text": "SYNTHETISCHE TESTMAIL – kein echtes Plattformformat.\n\n---------- Weitergeleitete Nachricht ----------\nNeue Angebote für Ihre Suche in Leipzig:\n\n3-Zimmer-Wohnung im Dachgeschoss, Südvorstadt, 98 m², 1.390 € warm, Balkon\nhttps://listings.example.com/angebot/1\n",
+  "html": null
+}

@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens. Neutral paper/ink palette with one accent (signal red).
+ * Contrast: --muted and --faint both stay above 4.5:1 on --bg and --surface,
+ * so de-emphasized text remains readable.
+ */
+:root {
+  --bg: #f6f5f1;
+  --surface: #ffffff;
+  --fg: #111111;
+  --muted: #555555;
+  --faint: #6b6b6b;
+  --line: #d8d6d0;
+  --accent: #c20e1a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111111;
+    --surface: #191919;
+    --fg: #f1f0ec;
+    --muted: #b8b6b0;
+    --faint: #9c9a95;
+    --line: #34332f;
+    --accent: #ff6b6b;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --font-sans: "Helvetica Neue", Helvetica, ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Arial, sans-serif;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
