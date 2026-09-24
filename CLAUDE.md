@@ -220,6 +220,14 @@ Fixtures:
 * Reviewed and redacted copies go in `fixtures/emails/<platform>/` (see "Email fixtures").
 * `fixtures/synthetic/emails/` holds invented test emails, never platform formats.
 
+Reprocessing: `reprocessStoredEmail()` in `pipeline.ts` (`npm run reprocess:email`).
+
+* It is separate from the webhook path, whose duplicate handling it does not touch.
+* It loads the stored email by `provider_message_id` and re-runs source detection and the current parsers on the stored raw content. It works for any status.
+* It persists through the same `processStoredEmail()` code as ingestion, always in resume mode: upsert for listings with a `sourceId`, and no re-inserting of source-id-less listings an earlier run already stored.
+* It updates only `detected_source`, `parser_version`, `parse_status` and `parse_error`; raw columns are never updated.
+* Use it after adding a parser, to turn earlier `unrecognized` emails into apartments.
+
 Adding a platform parser: capture a real email, add a redacted copy to `fixtures/emails/<platform>/`, implement `ApartmentParser` in `src/lib/parsers/`, register it in `PLATFORM_PARSERS`, and add tests against the fixture.
 
 ## Commands
@@ -236,6 +244,7 @@ npm run test:watch   # vitest in watch mode
 npm run seed         # upsert synthetic apartments (needs .env.local)
 npm run ingest:fixture -- <file.json> [--dry-run]   # run a fixture through the pipeline (--dry-run: no DB)
 npm run capture:email -- <resend-email-id> <platform> # save a raw capture to fixtures/private/ (gitignored)
+npm run reprocess:email -- <provider_message_id>     # re-run one stored email through the current parsers (uses the DB, never Resend)
 npx vitest run src/lib/scoring.test.ts   # single test file
 npx vitest run -t "name"                 # tests matching a name
 ```
@@ -243,7 +252,7 @@ npx vitest run -t "name"                 # tests matching a name
 - `typecheck` runs `next typegen` first because files use Next's generated global route types (e.g. `LayoutProps<"/">`). Plain `tsc` fails on a fresh checkout.
 - Tests are `src/**/*.test.ts` and `fixtures/**/*.test.ts`, next to the module under test, in a Node environment (no jsdom). `@/*` resolves to `src/*` via tsconfig paths.
 - Environment variables are listed in `.env.example`; copy it to `.env.local`. All of them are server-only.
-- `seed`, `ingest:fixture` and `capture:email` run through `tsx --conditions=react-server` so the `server-only` import resolves outside Next. `seed` is idempotent: it re-upserts the synthetic rows and resets their status/favorite.
+- `seed`, `ingest:fixture`, `capture:email` and `reprocess:email` run through `tsx --conditions=react-server` so the `server-only` import resolves outside Next. `seed` is idempotent: it re-upserts the synthetic rows and resets their status/favorite.
 
 Do not invent commands that are not defined in `package.json`.
 

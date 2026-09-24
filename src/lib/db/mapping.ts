@@ -84,6 +84,7 @@ export function emailParseResultToUpdate(result: EmailParseResult): EmailUpdate 
     parse_status: result.parseStatus,
     parser_version: result.parserVersion,
     parse_error: result.parseError,
+    ...(result.detectedSource !== undefined ? { detected_source: result.detectedSource } : {}),
   };
 }
 

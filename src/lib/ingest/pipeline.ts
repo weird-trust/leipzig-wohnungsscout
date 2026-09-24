@@ -1,4 +1,4 @@
-import type { Apartment, NewApartment } from "@/lib/domain/apartment";
+import type { Apartment, NewApartment, Source } from "@/lib/domain/apartment";
 import type {
   EmailParseResult,
   EmailParseStatus,
@@ -28,12 +28,20 @@ import { detectSource } from "@/lib/sourceDetection";
  *   source-id-less listings. Accepted for V0.1.
  */
 
-export interface IngestionStore {
-  createInboundEmail(email: NewInboundEmail): Promise<{ email: StoredEmail; created: boolean }>;
+/** What processing an already stored email needs. */
+export interface ProcessingStore {
   updateEmailParseResult(id: string, result: EmailParseResult): Promise<StoredEmail>;
   insertApartment(apartment: NewApartment): Promise<Apartment>;
   upsertApartment(apartment: NewApartment & { sourceId: string }): Promise<Apartment>;
   countApartmentsWithoutSourceId(emailId: string): Promise<number>;
+}
+
+export interface IngestionStore extends ProcessingStore {
+  createInboundEmail(email: NewInboundEmail): Promise<{ email: StoredEmail; created: boolean }>;
+}
+
+export interface ReprocessingStore extends ProcessingStore {
+  findEmailByProviderMessageId(providerMessageId: string): Promise<StoredEmail | null>;
 }
 
 export type IngestionResult =
@@ -48,6 +56,22 @@ export type IngestionResult =
     };
 
 export type IngestionStage = "store_email" | "persist_apartments" | "update_status";
+
+export interface ReprocessingResult {
+  emailId: string;
+  detectedSource: Source;
+  parserVersion: string;
+  parseStatus: EmailParseResult["parseStatus"];
+  apartments: number;
+}
+
+/** reprocessStoredEmail() was given an id that is not stored. */
+export class EmailNotFoundError extends Error {
+  constructor(readonly providerMessageId: string) {
+    super(`No stored email with provider message id ${JSON.stringify(providerMessageId)}.`);
+    this.name = "EmailNotFoundError";
+  }
+}
 
 /** An infrastructure failure. The caller should let the provider retry. */
 export class IngestionError extends Error {
@@ -94,7 +118,7 @@ function safeParse(parse: (email: IncomingEmail) => ParseOutcome, email: Incomin
 }
 
 async function persistApartments(
-  store: IngestionStore,
+  store: ProcessingStore,
   outcome: ParseOutcome,
   emailId: string,
   reprocessed: boolean,
@@ -111,6 +135,50 @@ async function persistApartments(
     }
   }
   return outcome.apartments.length;
+}
+
+/**
+ * Parses an email that is already stored, persists its apartments and
+ * records the result on the email row (never its raw content). Shared by
+ * ingestion and reprocessing. `resume` skips source-id-less listings a
+ * previous run already stored.
+ */
+async function processStoredEmail(
+  stored: StoredEmail,
+  store: ProcessingStore,
+  parse: (email: IncomingEmail) => ParseOutcome,
+  options: { resume: boolean; detectedSource?: Source },
+): Promise<{ outcome: ParseOutcome; apartments: number }> {
+  const outcome = safeParse(parse, stored);
+
+  let apartments: number;
+  try {
+    apartments = await persistApartments(store, outcome, stored.id, options.resume);
+  } catch (error) {
+    // Best effort: record the failure on the raw email; it stays retryable.
+    await store
+      .updateEmailParseResult(stored.id, {
+        parseStatus: "failed",
+        parserVersion: outcome.parserVersion,
+        parseError: truncate(`storing apartments failed: ${errorMessage(error)}`),
+        detectedSource: options.detectedSource,
+      })
+      .catch(() => undefined);
+    throw new IngestionError("persist_apartments", stored.id, error);
+  }
+
+  try {
+    await store.updateEmailParseResult(stored.id, {
+      parseStatus: outcome.status,
+      parserVersion: outcome.parserVersion,
+      parseError: describeFailures(outcome.failures),
+      detectedSource: options.detectedSource,
+    });
+  } catch (error) {
+    throw new IngestionError("update_status", stored.id, error);
+  }
+
+  return { outcome, apartments };
 }
 
 export async function processIncomingEmail(
@@ -134,32 +202,9 @@ export async function processIncomingEmail(
     return { outcome: "duplicate", emailId: stored.id, parseStatus: stored.parseStatus };
   }
 
-  const outcome = safeParse(parse, email);
-
-  let apartments: number;
-  try {
-    apartments = await persistApartments(store, outcome, stored.id, !created);
-  } catch (error) {
-    // Best effort: record the failure on the raw email; it stays retryable.
-    await store
-      .updateEmailParseResult(stored.id, {
-        parseStatus: "failed",
-        parserVersion: outcome.parserVersion,
-        parseError: truncate(`storing apartments failed: ${errorMessage(error)}`),
-      })
-      .catch(() => undefined);
-    throw new IngestionError("persist_apartments", stored.id, error);
-  }
-
-  try {
-    await store.updateEmailParseResult(stored.id, {
-      parseStatus: outcome.status,
-      parserVersion: outcome.parserVersion,
-      parseError: describeFailures(outcome.failures),
-    });
-  } catch (error) {
-    throw new IngestionError("update_status", stored.id, error);
-  }
+  const { outcome, apartments } = await processStoredEmail(stored, store, parse, {
+    resume: !created,
+  });
 
   return {
     outcome: "processed",
@@ -167,5 +212,41 @@ export async function processIncomingEmail(
     parseStatus: outcome.status,
     apartments,
     reprocessed: !created,
+  };
+}
+
+/**
+ * Explicitly re-runs a stored email (any status) through the current source
+ * detection and parser registry, using the stored raw content. Never fetches
+ * from the provider and never changes the raw content; it updates detected
+ * source, parser version, status and error. Separate from the webhook path,
+ * whose duplicate handling is unchanged.
+ */
+export async function reprocessStoredEmail(
+  providerMessageId: string,
+  store: ReprocessingStore,
+  parse: (email: IncomingEmail) => ParseOutcome = parseEmail,
+): Promise<ReprocessingResult> {
+  let stored: StoredEmail | null;
+  try {
+    stored = await store.findEmailByProviderMessageId(providerMessageId);
+  } catch (error) {
+    throw new IngestionError("store_email", null, error);
+  }
+  if (!stored) throw new EmailNotFoundError(providerMessageId);
+
+  const { source } = detectSource(stored);
+  // Always resume: source-id-less listings from an earlier run are not re-inserted.
+  const { outcome, apartments } = await processStoredEmail(stored, store, parse, {
+    resume: true,
+    detectedSource: source,
+  });
+
+  return {
+    emailId: stored.id,
+    detectedSource: source,
+    parserVersion: outcome.parserVersion,
+    parseStatus: outcome.status,
+    apartments,
   };
 }

@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "seed": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/seed.ts",
     "ingest:fixture": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ingest-fixture.ts",
-    "capture:email": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/capture-email.ts"
+    "capture:email": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/capture-email.ts",
+    "reprocess:email": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/reprocess-email.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.1",

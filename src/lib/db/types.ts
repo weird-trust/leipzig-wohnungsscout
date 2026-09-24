@@ -36,8 +36,9 @@ export type EmailInsert = {
   detected_source: string;
 };
 
+/** Processing results only; the raw email columns are never updated. */
 export type EmailUpdate = Partial<
-  Pick<EmailRow, "parser_version" | "parse_status" | "parse_error">
+  Pick<EmailRow, "parser_version" | "parse_status" | "parse_error" | "detected_source">
 >;
 
 export type ApartmentRow = {

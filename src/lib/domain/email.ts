@@ -38,6 +38,8 @@ export interface EmailParseResult {
   parseStatus: Exclude<EmailParseStatus, "pending">;
   parserVersion: string | null;
   parseError: string | null;
+  /** Only set when reprocessing re-detects the source. */
+  detectedSource?: Source;
 }
 
 export interface NewInboundEmail extends IncomingEmail {

@@ -202,3 +202,21 @@ describe("email mapping", () => {
     });
   });
 });
+
+describe("emailParseResultToUpdate with a re-detected source", () => {
+  it("adds detected_source only when given, and never raw columns", () => {
+    const update = emailParseResultToUpdate({
+      parseStatus: "parsed",
+      parserVersion: "immoscout@1.0.0",
+      parseError: null,
+      detectedSource: "immoscout",
+    });
+    expect(update).toEqual({
+      parse_status: "parsed",
+      parser_version: "immoscout@1.0.0",
+      parse_error: null,
+      detected_source: "immoscout",
+    });
+    expect(Object.keys(update).some((key) => key.startsWith("raw_"))).toBe(false);
+  });
+});
