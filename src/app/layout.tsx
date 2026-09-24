@@ -12,8 +12,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="de" className={`h-full ${diatype.variable}`}>
       <body className="min-h-full">
-        {/* Decorative background: slow yellow heat fields plus grain (globals.css). */}
+        {/* Decorative background: slow spectral heat fields plus grain (globals.css). */}
         <div aria-hidden="true" className="heatmap">
+          <span />
+          <span />
           <span />
           <span />
           <span />

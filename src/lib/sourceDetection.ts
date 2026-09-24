@@ -12,6 +12,8 @@ export const SOURCE_DOMAINS = {
   kleinanzeigen: ["kleinanzeigen.de"],
   "wg-gesucht": ["wg-gesucht.de"],
   lwb: ["lwb.de"],
+  // Alerts come from suchauftrag.ohne-makler.net; listings are on www.ohne-makler.net.
+  "ohne-makler": ["ohne-makler.net"],
 } as const satisfies Record<Exclude<Source, "other">, readonly string[]>;
 
 type PlatformSource = keyof typeof SOURCE_DOMAINS;

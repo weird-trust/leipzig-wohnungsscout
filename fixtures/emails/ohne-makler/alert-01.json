@@ -1,0 +1,11 @@
+{
+  "providerMessageId": "fixture-ohne-makler-alert-01",
+  "receivedAt": "2026-09-24T15:03:47.625Z",
+  "from": "info@suchauftrag.ohne-makler.net",
+  "to": [
+    "fixture@example.invalid"
+  ],
+  "subject": "Neue Immobilien in Leipzig",
+  "text": "Neue Immobilien in Leipzig\n\n----------------------------------------\n\nNeue Immobilien für Sie 🏡\n\nWir haben folgende Angebote in und um Leipzig für Sie gefunden:\n\n| (https://www.ohne-makler.net/immobilie/498369/) | Kernsanierte 2-Zimmer-Wohnung mit großem Balkon und Luxus-Einbauküche zu vermieten  (https://www.ohne-makler.net/immobilie/498369/)    Wohnung, Wohnung in 04299 Leipzig    Zimmer: 2,00 Wohnfläche: 74,00 m²     Miete: 790 € Privatangebot   👉 Exposé anzeigen  (https://www.ohne-makler.net/immobilie/498369/) |\n\n\n| (https://www.ohne-makler.net/immobilie/498366/) | Neu sanierte 3-Zimmer-Wohnung mit großem Balkon zu vermieten  (https://www.ohne-makler.net/immobilie/498366/)    Wohnung, Wohnung in 04129 Leipzig    Zimmer: 3,00 Wohnfläche: 77,00 m²     Miete: 890 € Privatangebot   👉 Exposé anzeigen  (https://www.ohne-makler.net/immobilie/498366/) |\n\n\n| (https://www.ohne-makler.net/immobilie/498178/) | Neu sanierte 3-Zimmer-Wohnung mit Luxus-Einbauküche großem Balkon zu vermieten  (https://www.ohne-makler.net/immobilie/498178/)    Wohnung, Wohnung in Musterstraße 9, 04177 Leipzig    Zimmer: 3,00 Wohnfläche: 87,00 m²     Miete: 1.150 € Privatangebot   👉 Exposé anzeigen  (https://www.ohne-makler.net/immobilie/498178/) |\n\n\nSie können jederzeit Ihren\nSuchauftrag bearbeiten\n (https://www.ohne-makler.net/suchauftrag/REDACTED/edit/)\noder alternativ den\nSuchauftrag abbestellen\n (https://www.ohne-makler.net/suchauftrag/abbestellen/REDACTED/)\n.\n\nWir wünschen Ihnen weiterhin viel Erfolg bei Ihrer Suche!\n\nMit freundlichen Grüßen\n\nIhr Team von ohne-makler\n\n----------------------------------------\n\nohne-makler — Immobilien selbst vermarkten\n\nOhneMakler GmbH, Herrengraben 6, 21465 Reinbek\n\nTel: 040 781 0206 10\nMail: info@ohne-makler.net\n\nAmtsgericht Lübeck, HRB 7609 HL USt-IdNr: DE348387526\n\nGeschäftsführer: Hendrik Richter\n\nSuchauftrag abbestellen\n (https://www.ohne-makler.net/suchauftrag/abbestellen/REDACTED/)",
+  "html": null
+}

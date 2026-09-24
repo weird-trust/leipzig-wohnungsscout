@@ -96,9 +96,14 @@ Pure core (no I/O, never imports Supabase):
 * `src/lib/domain/`: `Apartment`, `NewApartment`, `ListingData`, enums, `IncomingEmail` (provider-independent), `StoredEmail`. Favorite is `isFavorite`, not an `ApartmentStatus`.
 * `src/lib/sourceDetection.ts`: sender domain first, then majority of body link hosts; domains in `SOURCE_DOMAINS`.
 * `src/lib/parsers/`: `parseEmail()` tries `PLATFORM_PARSERS`, then `genericParser` (returns `[]`).
-  * `PLATFORM_PARSERS` holds `immoscout.ts` and `kleinanzeigen.ts`. Both parse only the **plain-text** part and understand only the structures in their real fixtures under `fixtures/emails/<platform>/`.
+  * `PLATFORM_PARSERS` holds `immoscout.ts`, `kleinanzeigen.ts` and `ohneMakler.ts`. Both parse only the **plain-text** part and understand only the structures in their real fixtures under `fixtures/emails/<platform>/`.
   * `kleinanzeigen.ts`: each `Anzeige ansehen` + `[…/s-anzeige/<digits>]` pair anchors one listing. The title is the standalone line after the `Bild zur Anzeige` image line, and the image comes only from `img.kleinanzeigen.de`. Rooms come only from an unambiguous `<n> Zi.` in the title.
   * `kleinanzeigen.ts` deliberately leaves `rentCold`/`rentWarm` null (the displayed price has no rent type), and `district`, `address` and `sqm` null (not in the alert; "in Connewitz" in the title is not interpreted). "Von Privat" is not stored.
+  * `ohneMakler.ts` (`ohne-makler@1.0.0`, source `ohne-makler`):
+    * One pipe-delimited row per listing, keyed by `https://www.ohne-makler.net/immobilie/<digits>/`. The URL repeats within a row, and IDs are deduplicated.
+    * `rooms` and `sqm` come from the labelled `Zimmer:` and `Wohnfläche:` fields.
+    * `address` is set only when the location has street + house number before postcode + city; postcode + city alone gives `null`, and no district is derived.
+    * The displayed `Miete` is not labelled cold or warm and deliberately maps to neither rent field.
   * `immoscout.ts` stores `sourceUrl` without its query string (real alerts carry personal tracking parameters) and takes `sourceId` from `/email/expose/<digits>`.
   * `immoscout.ts` sets no structured features. That alert format has no warm rent, so ImmoScout apartments get no fingerprint.
   * Each fixture test is a regression test: changing its expectations needs a deliberate parser migration. It never throws; parser errors are returned as `failures` with status `parsed | unrecognized | failed`.
@@ -110,6 +115,7 @@ Pure core (no I/O, never imports Supabase):
 
 * Schema source of truth: `supabase/migrations/` (plain SQL, Supabase CLI naming). Never change the schema in the Supabase dashboard without a matching migration.
 * Tables: `emails` (raw inbound mail; `provider_message_id` unique for idempotency; `parse_status` `pending | parsed | unrecognized | failed`) and `apartments` (`email_id` → `emails` `on delete set null`).
+* Sources: `immoscout`, `immowelt`, `kleinanzeigen`, `wg-gesucht`, `lwb`, `ohne-makler` (added by `20260924180000_ohne_makler_source.sql`), and `other` as the fallback.
 * Value sets are CHECK constraints, not enum types. When a domain enum in `src/lib/domain/` changes, change the matching constraint in a new migration.
 * Feature columns are nullable booleans with no default (null = unknown). `fingerprint` is indexed, not unique, and never used for merging.
 * `unique nulls distinct (source, source_id)` is a plain constraint, not a partial index, so `upsert(onConflict: "source,source_id")` can target it.

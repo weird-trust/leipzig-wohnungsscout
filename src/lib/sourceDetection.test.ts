@@ -30,11 +30,13 @@ describe("sourceForHostname", () => {
     ["www.kleinanzeigen.de", "kleinanzeigen"],
     ["www.wg-gesucht.de", "wg-gesucht"],
     ["LWB.DE", "lwb"],
+    ["suchauftrag.ohne-makler.net", "ohne-makler"],
+    ["www.ohne-makler.net", "ohne-makler"],
   ] as const)("%s → %s", (hostname, expected) => {
     expect(sourceForHostname(hostname)).toBe(expected);
   });
 
-  it.each(["notimmowelt.de", "immowelt.de.example.com", "example.com", "lwb.com"])(
+  it.each(["notimmowelt.de", "immowelt.de.example.com", "example.com", "lwb.com", "ohne-makler.net.example.com", "ohnemakler.net"])(
     "does not match %s",
     (hostname) => {
       expect(sourceForHostname(hostname)).toBeNull();

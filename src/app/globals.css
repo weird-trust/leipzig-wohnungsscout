@@ -9,13 +9,17 @@
   --bg: #f5f3ef;
   --surface: #ebe8e2;
   --fg: #171614;
-  --muted: #57544f;
-  --faint: #625e58;
+  --muted: #4a4742;
+  --faint: #57534d;
   --line: #d9d5ce;
   --accent: #b3401c;
-  /* Background heat fields: warm yellow, strongest at the core. */
-  --heat-core: rgb(255 204 0 / 0.45);
-  --heat-mid: rgb(255 222 89 / 0.3);
+  /*
+   * Background heat fields: one hue per field, strongest at the core.
+   * Checked so --faint text keeps ≥ 5:1 even over the most saturated core.
+   */
+  --heat-lightness: 75%;
+  --heat-core: 0.35;
+  --heat-mid: 0.18;
   --grain-opacity: 0.16;
 }
 
@@ -24,12 +28,13 @@
     --bg: #171b10;
     --surface: #21271a;
     --fg: #eef0e5;
-    --muted: #b2b7a0;
-    --faint: #959b83;
+    --muted: #bcc1ab;
+    --faint: #a4aa92;
     --line: #313824;
     --accent: #f08c66;
-    --heat-core: rgb(255 196 0 / 0.2);
-    --heat-mid: rgb(255 210 60 / 0.08);
+    --heat-lightness: 45%;
+    --heat-core: 0.18;
+    --heat-mid: 0.07;
     --grain-opacity: 0.1;
   }
 }
@@ -148,9 +153,9 @@ summary::-webkit-details-marker {
 }
 
 /*
- * Heatmap background: three soft radial fields that drift and breathe very
- * slowly (transform only, so it stays on the compositor), with static grain
- * on top. Fixed behind all content; purely decorative.
+ * Heatmap background: five soft radial fields across the spectrum that
+ * drift and breathe very slowly (transform only, so it stays on the
+ * compositor), with static grain on top. Fixed behind all content.
  */
 .heatmap {
   position: fixed;
@@ -161,41 +166,67 @@ summary::-webkit-details-marker {
 }
 
 .heatmap span {
+  --h: 48;
+  --size: 60vmax;
   position: absolute;
-  width: 70vmax;
-  height: 70vmax;
+  width: var(--size);
+  height: var(--size);
   border-radius: 50%;
   background: radial-gradient(
     closest-side,
-    var(--heat-core),
-    var(--heat-mid) 45%,
+    hsl(var(--h) 95% var(--heat-lightness) / var(--heat-core)),
+    hsl(var(--h) 95% var(--heat-lightness) / var(--heat-mid)) 45%,
     transparent 100%
   );
   will-change: transform;
-  animation: heat-drift 60s ease-in-out infinite alternate;
+  animation: heat-drift 70s ease-in-out infinite alternate;
 }
 
+/* red-orange, top right */
 .heatmap span:nth-child(1) {
-  top: -30vmax;
-  right: -20vmax;
+  --h: 15;
+  --size: 65vmax;
+  top: -32vmax;
+  right: -18vmax;
 }
 
+/* yellow, top left */
 .heatmap span:nth-child(2) {
-  top: 30vh;
-  left: -35vmax;
-  width: 60vmax;
-  height: 60vmax;
-  animation-duration: 80s;
-  animation-delay: -20s;
+  --h: 48;
+  top: -25vmax;
+  left: -20vmax;
+  animation-duration: 85s;
+  animation-delay: -15s;
 }
 
+/* green, middle left */
 .heatmap span:nth-child(3) {
-  bottom: -40vmax;
-  right: 5vw;
-  width: 55vmax;
-  height: 55vmax;
+  --h: 120;
+  --size: 55vmax;
+  top: 35vh;
+  left: -30vmax;
   animation-duration: 95s;
-  animation-delay: -45s;
+  animation-delay: -40s;
+}
+
+/* cyan, middle right */
+.heatmap span:nth-child(4) {
+  --h: 190;
+  --size: 55vmax;
+  top: 30vh;
+  right: -25vmax;
+  animation-duration: 80s;
+  animation-delay: -60s;
+}
+
+/* violet, bottom */
+.heatmap span:nth-child(5) {
+  --h: 275;
+  --size: 60vmax;
+  bottom: -38vmax;
+  left: 20vw;
+  animation-duration: 100s;
+  animation-delay: -25s;
 }
 
 .heatmap::after {

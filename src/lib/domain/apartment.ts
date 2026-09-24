@@ -4,6 +4,7 @@ export const SOURCES = [
   "kleinanzeigen",
   "wg-gesucht",
   "lwb",
+  "ohne-makler",
   "other",
 ] as const;
 export type Source = (typeof SOURCES)[number];
