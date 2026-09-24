@@ -95,7 +95,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     <main>
       <header>
         <h1 className="text-xl font-medium tracking-[-0.04em]">
-          Mauwscout{" "}
+          Mauwscout24{" "}
           <span className="font-mono font-extralight tracking-[-0.06em] text-muted">Leipzig</span>
         </h1>
         <p className="mt-4 text-base text-muted tabular-nums">

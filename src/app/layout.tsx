@@ -3,7 +3,7 @@ import { diatype } from "./fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mauwscout Leipzig",
+  title: "Mauwscout24 Leipzig",
   description: "Persönliches Wohnungssuche-Dashboard für Leipzig",
   robots: { index: false, follow: false },
 };
