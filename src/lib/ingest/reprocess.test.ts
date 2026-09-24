@@ -100,13 +100,13 @@ describe("reprocessStoredEmail", () => {
     expect(result).toEqual({
       emailId: "email-row-1",
       detectedSource: "immoscout",
-      parserVersion: "immoscout@1.0.0",
+      parserVersion: "immoscout@1.0.1",
       parseStatus: "parsed",
       apartments: 1,
     });
     expect(db.email()).toMatchObject({
       parseStatus: "parsed",
-      parserVersion: "immoscout@1.0.0",
+      parserVersion: "immoscout@1.0.1",
       parseError: null,
     });
     expect(db.apartments).toHaveLength(1);
@@ -131,7 +131,7 @@ describe("reprocessStoredEmail", () => {
     }
     expect(after).toMatchObject({
       parseStatus: "parsed",
-      parserVersion: "immoscout@1.0.0",
+      parserVersion: "immoscout@1.0.1",
       parseError: null,
       detectedSource: "immoscout",
     });

@@ -18,9 +18,10 @@ import {
  * Changing these expectations requires a deliberate parser migration.
  */
 const FIXTURE = "fixtures/emails/immoscout/alert-01.json";
+const FIXTURE_MULTIPLE = "fixtures/emails/immoscout/alert-02-multiple.json";
 
-function loadFixture(): IncomingEmail {
-  const file = fixtureFileSchema.parse(JSON.parse(readFileSync(FIXTURE, "utf-8")));
+function loadFixture(path = FIXTURE): IncomingEmail {
+  const file = fixtureFileSchema.parse(JSON.parse(readFileSync(path, "utf-8")));
   return fixtureToIncomingEmail(file, new Date("2026-09-24T13:36:22.146Z"));
 }
 
@@ -36,7 +37,7 @@ describe("ImmoScout alert-01 (real fixture)", () => {
   it("is selected by parseEmail()", () => {
     const outcome = parseEmail(email);
     expect(outcome.status).toBe("parsed");
-    expect(outcome.parserVersion).toBe("immoscout@1.0.0");
+    expect(outcome.parserVersion).toBe("immoscout@1.0.1");
     expect(outcome.failures).toEqual([]);
     expect(outcome.apartments).toEqual(apartments);
   });
@@ -112,6 +113,111 @@ describe("ImmoScout alert-01 (real fixture)", () => {
       // The fingerprint needs warm rent, which this alert format does not include.
       fingerprint: null,
     });
+  });
+});
+
+describe("ImmoScout alert-02-multiple (real fixture, three listings)", () => {
+  const multiple = loadFixture(FIXTURE_MULTIPLE);
+  const listings = immoscoutParser.parse(multiple);
+  const normalized = listings.map((listing) => toNewApartment(listing, "email-row"));
+
+  it("is selected by parseEmail() and yields exactly three apartments", () => {
+    const outcome = parseEmail(multiple);
+    expect(outcome.status).toBe("parsed");
+    expect(outcome.parserVersion).toBe("immoscout@1.0.1");
+    expect(outcome.apartments).toHaveLength(3);
+  });
+
+  it("keeps every listing's own data (no bleeding between blocks)", () => {
+    expect(listings).toEqual([
+      {
+        source: "immoscout",
+        sourceUrl: "https://push.search.is24.de/email/expose/171164631",
+        sourceId: "171164631",
+        title: "Inkl. Aufzug und neuer Einbauküche!",
+        address: "Beispielstraße 46, Südvorstadt, Leipzig",
+        district: "Südvorstadt",
+        rooms: 3,
+        sqm: 85,
+        rentCold: 1199,
+        rentWarm: null,
+        floor: null,
+        imageUrl: null,
+        description: "Balkon/Terrasse, Einbauküche, Aufzug",
+      },
+      {
+        source: "immoscout",
+        sourceUrl: "https://push.search.is24.de/email/expose/171164610",
+        sourceId: "171164610",
+        title: "Inkl. neuer Einbauküche & Balkon! *In Renovierung*",
+        address: "Beispielstraße 77, Südvorstadt, Leipzig",
+        district: "Südvorstadt",
+        rooms: 3,
+        sqm: 76,
+        rentCold: 1099,
+        rentWarm: null,
+        floor: null,
+        imageUrl: null,
+        description: "Balkon/Terrasse, Einbauküche",
+      },
+      {
+        source: "immoscout",
+        sourceUrl: "https://push.search.is24.de/email/expose/171164515",
+        sourceId: "171164515",
+        title: "4-RW inkl. großem Balkon und neuer Einbauküche! *In Renovierung!*",
+        address: "Musterstraße 27, Plagwitz, Leipzig",
+        district: "Plagwitz",
+        rooms: 4,
+        sqm: 94,
+        rentCold: 1349,
+        rentWarm: null,
+        floor: null,
+        imageUrl: null,
+        description: "Balkon/Terrasse, Einbauküche",
+      },
+    ]);
+  });
+
+  it("strips the leading \"Nur hier gefunden, \" decoration from every description", () => {
+    for (const listing of listings) {
+      expect(listing.description).not.toContain("Nur hier gefunden");
+    }
+  });
+
+  it("extracts features through the generic step", () => {
+    expect(normalized.map(({ balcony, elevator }) => ({ balcony, elevator }))).toEqual([
+      { balcony: true, elevator: true },
+      { balcony: true, elevator: null },
+      { balcony: true, elevator: null },
+    ]);
+    for (const apartment of normalized) {
+      expect(apartment).toMatchObject({
+        residentialKitchen: null, // "Einbauküche" is not a Wohnküche
+        rentWarm: null,
+        fingerprint: null, // needs warm rent, which ImmoScout alerts do not include
+      });
+    }
+  });
+
+  it("does not turn navigation, search-management or footer links into listings", () => {
+    expect(listings.map((l) => l.sourceId)).toEqual(["171164631", "171164610", "171164515"]);
+    for (const text of ["executeSavedSearch", "savedsearch/anonymous/delete", "savedsearch/myscout/manage", "impressum"]) {
+      expect(multiple.text).toContain(text);
+      expect(JSON.stringify(listings)).not.toContain(text);
+    }
+    for (const listing of listings) {
+      expect(listing.description).not.toMatch(/<|FOOTER|Alle Angebote|Suchauftrag|-{5}/);
+    }
+  });
+
+  it("removes the decoration only at the very start of the free text", () => {
+    // Isolated edge case derived from the real fixture's feature line.
+    const moved = multiple.text!.replace(
+      "Nur hier gefunden, Balkon/Terrasse, Einbauküche, Aufzug",
+      "Balkon/Terrasse, Nur hier gefunden, Aufzug",
+    );
+    const [first] = immoscoutParser.parse({ ...multiple, text: moved });
+    expect(first.description).toBe("Balkon/Terrasse, Nur hier gefunden, Aufzug");
   });
 });
 

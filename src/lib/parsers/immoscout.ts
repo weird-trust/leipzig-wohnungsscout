@@ -3,9 +3,10 @@ import type { ApartmentParser, ParsedApartment } from "@/lib/parsers/types";
 import { senderDomain } from "@/lib/sourceDetection";
 
 /**
- * ImmoScout24 search-alert parser, built against the real plain-text alert in
- * fixtures/emails/immoscout/alert-01.json (the regression fixture). It only
- * understands the structure shown there:
+ * ImmoScout24 search-alert parser, built against the real plain-text alerts
+ * in fixtures/emails/immoscout/ (regression fixtures: alert-01 with one
+ * listing, alert-02-multiple with three separated only by blank lines). It
+ * only understands the structure shown there:
  *
  *   Titel: <title>
  *   Link: https://push.search.is24.de/email/expose/<id>?<tracking>
@@ -13,7 +14,7 @@ import { senderDomain } from "@/lib/sourceDetection";
  *   Kaltmiete: 1.099 €
  *   Wohnfläche: 77 m²
  *   Zimmer: 3
- *   <free text, e.g. "Balkon/Terrasse, Einbauküche">
+ *   <free text, e.g. "Nur hier gefunden, Balkon/Terrasse, Einbauküche">
  *   -------------------------------
  *   Alle Angebote ansehen            ← end of listings; search management and
  *   …                                  an HTML footer follow
@@ -31,6 +32,8 @@ const SEPARATOR = /^-{10,}$/;
 const LISTINGS_END = "Alle Angebote ansehen";
 const FOOTER_START = "<!-- FOOTER START -->";
 const FIELD = /^(Titel|Link|Adresse|Kaltmiete|Wohnfläche|Zimmer):\s*(.*)$/;
+/** ImmoScout's own label at the start of the feature line (alert-02-multiple), not a feature. */
+const LEADING_DECORATION = "Nur hier gefunden, ";
 
 type Field = "Titel" | "Link" | "Adresse" | "Kaltmiete" | "Wohnfläche" | "Zimmer";
 
@@ -126,10 +129,14 @@ function parseBlock(block: readonly string[]): ParsedApartment | null {
   const title = fields.get("Titel");
   if (!title) return null;
 
-  const description = block
+  const freeText = block
     .slice(lastFieldIndex + 1)
     .filter((line) => line !== "")
     .join("\n");
+  // Only the exact prefix at the very start; the phrase elsewhere is left alone.
+  const description = freeText.startsWith(LEADING_DECORATION)
+    ? freeText.slice(LEADING_DECORATION.length)
+    : freeText;
   const address = fields.get("Adresse") || null;
 
   return {
@@ -151,7 +158,7 @@ function parseBlock(block: readonly string[]): ParsedApartment | null {
 
 export const immoscoutParser: ApartmentParser = {
   name: "immoscout",
-  version: "1.0.0",
+  version: "1.0.1",
 
   canParse(email: IncomingEmail): boolean {
     if (!email.text || !/^\s*Titel:/m.test(email.text)) return false;
