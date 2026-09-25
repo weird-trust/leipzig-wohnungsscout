@@ -104,10 +104,11 @@ Pure core (no I/O, never imports Supabase):
     * `rooms` and `sqm` come from the labelled `Zimmer:` and `Wohnfläche:` fields.
     * `address` is set only when the location has street + house number before postcode + city; postcode + city alone gives `null`, and no district is derived.
     * The displayed `Miete` is not labelled cold or warm and deliberately maps to neither rent field.
-  * `immowelt.ts` (`immowelt@1.0.0`) expects **link-resolved** plain text:
+  * `immowelt.ts` (`immowelt@1.0.1`) expects **link-resolved** plain text:
     * Each listing is anchored by `https://www.immowelt.de/expose/<uuid>` directly above `Mehr Informationen`.
     * Raw alerts only contain personalized `click.by.immowelt.de/?qs=…` links, so they are not recognized and end up `unrecognized`.
-    * Resolving those redirects is **not** the parser's job and is still to be built as an ingestion step. The parser makes no network requests.
+    * The parser itself makes no network requests. Link resolution happens in the ingestion layer (next bullet).
+    * Real mail has a tracking link before every content line; URL-only lines inside a listing block are ignored, so a link can never become the title. This was fixed in 1.0.1.
     * `rentCold` is trusted because the alert labels it `Kaltmiete` (it may contain NBSP).
     * `district` comes directly from the `<district>,` / `Leipzig` / `(<postcode>)` lines.
     * There is no street address (`address` is null), warm rent stays unknown, and the postcode is not stored.
@@ -234,6 +235,15 @@ Fixtures:
 * `capture:email` writes raw captures to the gitignored `fixtures/private/emails/<platform>/`.
 * Reviewed and redacted copies go in `fixtures/emails/<platform>/` (see "Email fixtures").
 * `fixtures/synthetic/emails/` holds invented test emails, never platform formats.
+
+Preprocessing (`src/lib/ingest/preprocess.ts`): runs inside `processStoredEmail()` before parsing, for live ingestion **and** reprocessing alike. The resolved text is used for parsing only; the stored raw email never changes.
+
+* Real Immowelt mail is link-resolved by `src/lib/ingest/immoweltLinks.ts`. Only the `https://click.by.immowelt.de/?qs=…` link directly above each exact `Mehr Informationen` line is resolved (6 requests for a 6-listing alert, not every tracker).
+* It uses `fetch` with `redirect: "manual"`, a timeout, and at most 5 hops, following `Location` headers only until a canonical `https://www.immowelt.de/expose/<uuid>` appears. The expose page is never fetched, and any other destination is rejected.
+* It is all or nothing: one failed link means stage `preprocess`, the email is marked `failed` with a token-free error, the webhook returns 500 so Resend retries, and no partial parse happens.
+* Tracking URLs and tokens are never logged, never stored and never part of error messages.
+* Already-resolved text (the reviewed fixture) needs no request. `ingest:fixture --dry-run` is offline unless `--allow-network` is given.
+* Tests never touch the network: `src/test/setup.ts` replaces `fetch` with one that throws, and resolver tests inject a fake fetch with synthetic tokens (`src/lib/ingest/testing/immowelt.ts`).
 
 Reprocessing: `reprocessStoredEmail()` in `pipeline.ts` (`npm run reprocess:email`).
 

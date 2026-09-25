@@ -22,6 +22,10 @@ import type { ApartmentParser, ParsedApartment } from "@/lib/parsers/types";
  *   https://www.immowelt.de/expose/<uuid>
  *   Mehr Informationen                  ← anchor
  *
+ * In real (resolved) mail, every content line above is preceded by another
+ * click.by.immowelt.de tracking line; URL-only lines inside a block are
+ * therefore ignored, so a link can never become the title.
+ *
  * There is no street address and no warm rent.
  */
 
@@ -32,7 +36,7 @@ const ANCHOR = "Mehr Informationen";
 const CITY = "Leipzig";
 const POSTCODE_LINE = /^\(\d{5}\)$/;
 /** NBSP and other Unicode spaces used by the real alert (e.g. "1.199 €"). */
-const UNICODE_SPACES = /[   -   　]/g;
+const UNICODE_SPACES = /[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g;
 
 /** Canonical listing identity for exactly https://www.immowelt.de/expose/<uuid>. */
 export function parseExposeUrl(value: string): { sourceUrl: string; sourceId: string } | null {
@@ -115,8 +119,12 @@ function nextContentLine(lines: readonly string[], from: number): number {
   return index;
 }
 
+const URL_ONLY_LINE = /^https?:\/\/\S+$/i;
+
 /** Parses one listing from its own block (lines since the previous anchor). */
-function parseBlock(block: readonly string[], listing: Anchor["listing"]): ParsedApartment | null {
+function parseBlock(lines: readonly string[], listing: Anchor["listing"]): ParsedApartment | null {
+  // Tracking links sit between the content lines of real alerts.
+  const block = lines.map((line) => (URL_ONLY_LINE.test(line) ? "" : line));
   const rentIndex = block.findLastIndex((line) => parseKaltmiete(line) !== null);
   if (rentIndex === -1) return null;
 
@@ -151,7 +159,7 @@ function textLines(email: IncomingEmail): string[] {
 
 export const immoweltParser: ApartmentParser = {
   name: "immowelt",
-  version: "1.0.0",
+  version: "1.0.1",
 
   canParse(email: IncomingEmail): boolean {
     return findAnchors(textLines(email)).length > 0;

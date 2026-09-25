@@ -6,7 +6,9 @@ import type {
   NewInboundEmail,
   StoredEmail,
 } from "@/lib/domain/email";
+import { ImmoweltResolutionError } from "@/lib/ingest/immoweltLinks";
 import { toNewApartment } from "@/lib/ingest/normalize";
+import { defaultPreprocess, type EmailPreprocessor } from "@/lib/ingest/preprocess";
 import { parseEmail } from "@/lib/parsers";
 import type { ParseOutcome, ParserFailure } from "@/lib/parsers/types";
 import { detectSource } from "@/lib/sourceDetection";
@@ -55,7 +57,11 @@ export type IngestionResult =
       reprocessed: boolean;
     };
 
-export type IngestionStage = "store_email" | "persist_apartments" | "update_status";
+export type IngestionStage =
+  | "store_email"
+  | "preprocess"
+  | "persist_apartments"
+  | "update_status";
 
 export interface ReprocessingResult {
   emailId: string;
@@ -137,19 +143,44 @@ async function persistApartments(
   return outcome.apartments.length;
 }
 
+/** Safe to store/log: resolver errors are designed to be token-free, others are not trusted. */
+function preprocessErrorMessage(error: unknown): string {
+  return error instanceof ImmoweltResolutionError ? error.message : "email preprocessing failed";
+}
+
 /**
- * Parses an email that is already stored, persists its apartments and
- * records the result on the email row (never its raw content). Shared by
- * ingestion and reprocessing. `resume` skips source-id-less listings a
- * previous run already stored.
+ * Preprocesses (e.g. resolves Immowelt listing links) and parses an email
+ * that is already stored, persists its apartments and records the result on
+ * the email row (never its raw content). Shared by ingestion and
+ * reprocessing. `resume` skips source-id-less listings a previous run
+ * already stored.
  */
 async function processStoredEmail(
   stored: StoredEmail,
   store: ProcessingStore,
   parse: (email: IncomingEmail) => ParseOutcome,
+  preprocess: EmailPreprocessor,
   options: { resume: boolean; detectedSource?: Source },
 ): Promise<{ outcome: ParseOutcome; apartments: number }> {
-  const outcome = safeParse(parse, stored);
+  let prepared: IncomingEmail;
+  try {
+    prepared = await preprocess(stored);
+  } catch (error) {
+    // All or nothing: never parse a partially prepared email. The raw email
+    // stays stored as "failed", so a retry or reprocessing can try again.
+    const message = preprocessErrorMessage(error);
+    await store
+      .updateEmailParseResult(stored.id, {
+        parseStatus: "failed",
+        parserVersion: null,
+        parseError: message,
+        detectedSource: options.detectedSource,
+      })
+      .catch(() => undefined);
+    throw new IngestionError("preprocess", stored.id, new Error(message));
+  }
+
+  const outcome = safeParse(parse, prepared);
 
   let apartments: number;
   try {
@@ -185,6 +216,7 @@ export async function processIncomingEmail(
   email: IncomingEmail,
   store: IngestionStore,
   parse: (email: IncomingEmail) => ParseOutcome = parseEmail,
+  preprocess: EmailPreprocessor = defaultPreprocess,
 ): Promise<IngestionResult> {
   // Detect on the complete email: forwarded alerts only reveal the platform
   // in their links, not in From.
@@ -202,7 +234,7 @@ export async function processIncomingEmail(
     return { outcome: "duplicate", emailId: stored.id, parseStatus: stored.parseStatus };
   }
 
-  const { outcome, apartments } = await processStoredEmail(stored, store, parse, {
+  const { outcome, apartments } = await processStoredEmail(stored, store, parse, preprocess, {
     resume: !created,
   });
 
@@ -226,6 +258,7 @@ export async function reprocessStoredEmail(
   providerMessageId: string,
   store: ReprocessingStore,
   parse: (email: IncomingEmail) => ParseOutcome = parseEmail,
+  preprocess: EmailPreprocessor = defaultPreprocess,
 ): Promise<ReprocessingResult> {
   let stored: StoredEmail | null;
   try {
@@ -237,7 +270,7 @@ export async function reprocessStoredEmail(
 
   const { source } = detectSource(stored);
   // Always resume: source-id-less listings from an earlier run are not re-inserted.
-  const { outcome, apartments } = await processStoredEmail(stored, store, parse, {
+  const { outcome, apartments } = await processStoredEmail(stored, store, parse, preprocess, {
     resume: true,
     detectedSource: source,
   });

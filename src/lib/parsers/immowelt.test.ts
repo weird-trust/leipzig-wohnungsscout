@@ -41,10 +41,10 @@ describe("Immowelt alert-01 (real fixture, link-resolved)", () => {
     expect(detectSource(email)).toEqual({ source: "immowelt", matchedBy: "sender" });
   });
 
-  it("is selected by parseEmail() as immowelt@1.0.0", () => {
+  it("is selected by parseEmail() as immowelt@1.0.1", () => {
     const outcome = parseEmail(email);
     expect(outcome.status).toBe("parsed");
-    expect(outcome.parserVersion).toBe("immowelt@1.0.0");
+    expect(outcome.parserVersion).toBe("immowelt@1.0.1");
     expect(outcome.failures).toEqual([]);
     expect(outcome.apartments).toEqual(apartments);
   });
@@ -77,7 +77,7 @@ describe("Immowelt alert-01 (real fixture, link-resolved)", () => {
   );
 
   it("parses the real NBSP price and German decimals", () => {
-    expect(email.text).toContain("1.199 € Kaltmiete");
+    expect(email.text).toContain("1.199\u00a0€ Kaltmiete");
     expect(apartments[0].rentCold).toBe(1199);
     expect(apartments[3].rooms).toBe(3.5); // "3,5 Zimmer"
     expect(apartments[1].sqm).toBe(64.64); // "64,64 m²"
@@ -151,7 +151,7 @@ describe("Immowelt alert-01 (real fixture, link-resolved)", () => {
 describe("parseKaltmiete", () => {
   it.each([
     ["1.199 € Kaltmiete", 1199],
-    ["1.199 € Kaltmiete", 1199],
+    ["1.199\u00a0€ Kaltmiete", 1199],
     ["700 € Kaltmiete", 700],
     ["1.349 € Kaltmiete", 1349],
   ])("%j → %j", (line, expected) => {
@@ -171,7 +171,7 @@ describe("parseRoomsAndArea", () => {
     ["3 Zimmer . 85 m²", { rooms: 3, sqm: 85 }],
     ["3,5 Zimmer . 65 m²", { rooms: 3.5, sqm: 65 }],
     ["3 Zimmer . 64,64 m²", { rooms: 3, sqm: 64.64 }],
-    ["3 Zimmer . 85 m²", { rooms: 3, sqm: 85 }],
+    ["3\u00a0Zimmer . 85\u00a0m²", { rooms: 3, sqm: 85 }],
   ])("%j → %j", (line, expected) => {
     expect(parseRoomsAndArea(line)).toEqual(expected);
   });
