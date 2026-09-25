@@ -1,6 +1,7 @@
 import type { IncomingEmail } from "@/lib/domain/email";
 import { genericParser } from "@/lib/parsers/generic";
 import { immoscoutParser } from "@/lib/parsers/immoscout";
+import { immoweltParser } from "@/lib/parsers/immowelt";
 import { kleinanzeigenParser } from "@/lib/parsers/kleinanzeigen";
 import { ohneMaklerParser } from "@/lib/parsers/ohneMakler";
 import type {
@@ -17,6 +18,7 @@ export const PLATFORM_PARSERS: readonly ApartmentParser[] = [
   immoscoutParser, // fixtures/emails/immoscout/
   kleinanzeigenParser, // fixtures/emails/kleinanzeigen/
   ohneMaklerParser, // fixtures/emails/ohne-makler/
+  immoweltParser, // fixtures/emails/immowelt/ (expects link-resolved text)
 ];
 
 function errorMessage(error: unknown): string {

@@ -96,7 +96,7 @@ Pure core (no I/O, never imports Supabase):
 * `src/lib/domain/`: `Apartment`, `NewApartment`, `ListingData`, enums, `IncomingEmail` (provider-independent), `StoredEmail`. Favorite is `isFavorite`, not an `ApartmentStatus`.
 * `src/lib/sourceDetection.ts`: sender domain first, then majority of body link hosts; domains in `SOURCE_DOMAINS`.
 * `src/lib/parsers/`: `parseEmail()` tries `PLATFORM_PARSERS`, then `genericParser` (returns `[]`).
-  * `PLATFORM_PARSERS` holds `immoscout.ts`, `kleinanzeigen.ts` and `ohneMakler.ts`. Both parse only the **plain-text** part and understand only the structures in their real fixtures under `fixtures/emails/<platform>/`.
+  * `PLATFORM_PARSERS` holds `immoscout.ts`, `kleinanzeigen.ts`, `ohneMakler.ts` and `immowelt.ts`, in that order. Both parse only the **plain-text** part and understand only the structures in their real fixtures under `fixtures/emails/<platform>/`.
   * `kleinanzeigen.ts`: each `Anzeige ansehen` + `[…/s-anzeige/<digits>]` pair anchors one listing. The title is the standalone line after the `Bild zur Anzeige` image line, and the image comes only from `img.kleinanzeigen.de`. Rooms come only from an unambiguous `<n> Zi.` in the title.
   * `kleinanzeigen.ts` deliberately leaves `rentCold`/`rentWarm` null (the displayed price has no rent type), and `district`, `address` and `sqm` null (not in the alert; "in Connewitz" in the title is not interpreted). "Von Privat" is not stored.
   * `ohneMakler.ts` (`ohne-makler@1.0.0`, source `ohne-makler`):
@@ -104,6 +104,13 @@ Pure core (no I/O, never imports Supabase):
     * `rooms` and `sqm` come from the labelled `Zimmer:` and `Wohnfläche:` fields.
     * `address` is set only when the location has street + house number before postcode + city; postcode + city alone gives `null`, and no district is derived.
     * The displayed `Miete` is not labelled cold or warm and deliberately maps to neither rent field.
+  * `immowelt.ts` (`immowelt@1.0.0`) expects **link-resolved** plain text:
+    * Each listing is anchored by `https://www.immowelt.de/expose/<uuid>` directly above `Mehr Informationen`.
+    * Raw alerts only contain personalized `click.by.immowelt.de/?qs=…` links, so they are not recognized and end up `unrecognized`.
+    * Resolving those redirects is **not** the parser's job and is still to be built as an ingestion step. The parser makes no network requests.
+    * `rentCold` is trusted because the alert labels it `Kaltmiete` (it may contain NBSP).
+    * `district` comes directly from the `<district>,` / `Leipzig` / `(<postcode>)` lines.
+    * There is no street address (`address` is null), warm rent stays unknown, and the postcode is not stored.
   * `immoscout.ts` stores `sourceUrl` without its query string (real alerts carry personal tracking parameters) and takes `sourceId` from `/email/expose/<digits>`.
   * `immoscout.ts` sets no structured features. That alert format has no warm rent, so ImmoScout apartments get no fingerprint.
   * Each fixture test is a regression test: changing its expectations needs a deliberate parser migration. It never throws; parser errors are returned as `failures` with status `parsed | unrecognized | failed`.
