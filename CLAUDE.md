@@ -54,15 +54,17 @@ Do not implement these unless explicitly requested:
 ## Email fixtures
 
 ```text
-fixtures/private/emails/<platform>/   raw captures from `npm run capture:email`, untouched, gitignored
-fixtures/emails/<platform>/           reviewed + redacted copies: committed, used by tests
+fixtures/private/                     raw captures (emails and fetched pages), untouched, gitignored
+fixtures/private/emails/<platform>/   raw emails from `npm run capture:email`
+fixtures/emails/<platform>/           reviewed + redacted emails: committed, used by tests
+fixtures/pages/<platform>/            reviewed + redacted web pages an email links to (e.g. search results): committed, used by tests
 fixtures/synthetic/                   invented data, never a platform format
 ```
 
 * Raw captures contain personal data (addresses, names, search-alert links) and tracking URLs.
 * Never commit anything under `fixtures/private/`, and never edit a raw capture. The capture script never overwrites.
 * To create a test fixture, copy a private capture to `fixtures/emails/<platform>/`, then review and redact it by hand. Keep the listing structure intact.
-* Tests and parsers use only `fixtures/emails/`.
+* Tests and parsers use only `fixtures/emails/` and `fixtures/pages/`. A page fixture keeps the real markup the parser needs and drops page chrome, scripts and every personalized URL, query or token.
 * Do not create platform-specific parsing logic until at least one reviewed fixture exists for that platform.
 
 ## Architecture
@@ -96,7 +98,7 @@ Pure core (no I/O, never imports Supabase):
 * `src/lib/domain/`: `Apartment`, `NewApartment`, `ListingData`, enums, `IncomingEmail` (provider-independent), `StoredEmail`. Favorite is `isFavorite`, not an `ApartmentStatus`.
 * `src/lib/sourceDetection.ts`: sender domain first, then majority of body link hosts; domains in `SOURCE_DOMAINS`.
 * `src/lib/parsers/`: `parseEmail()` tries `PLATFORM_PARSERS`, then `genericParser` (returns `[]`).
-  * `PLATFORM_PARSERS` holds `immoscout.ts`, `kleinanzeigen.ts`, `ohneMakler.ts` and `immowelt.ts`, in that order. Both parse only the **plain-text** part and understand only the structures in their real fixtures under `fixtures/emails/<platform>/`.
+  * `PLATFORM_PARSERS` holds `immoscout.ts`, `kleinanzeigen.ts`, `ohneMakler.ts`, `immowelt.ts` and `hildebrandPartner.ts`, in that order. Both parse only the **plain-text** part and understand only the structures in their real fixtures under `fixtures/emails/<platform>/`.
   * `kleinanzeigen.ts`: each `Anzeige ansehen` + `[…/s-anzeige/<digits>]` pair anchors one listing. The title is the standalone line after the `Bild zur Anzeige` image line, and the image comes only from `img.kleinanzeigen.de`. Rooms come only from an unambiguous `<n> Zi.` in the title.
   * `kleinanzeigen.ts` deliberately leaves `rentCold`/`rentWarm` null (the displayed price has no rent type), and `district`, `address` and `sqm` null (not in the alert; "in Connewitz" in the title is not interpreted). "Von Privat" is not stored.
   * `ohneMakler.ts` (`ohne-makler@1.0.0`, source `ohne-makler`):
@@ -104,14 +106,21 @@ Pure core (no I/O, never imports Supabase):
     * `rooms` and `sqm` come from the labelled `Zimmer:` and `Wohnfläche:` fields.
     * `address` is set only when the location has street + house number before postcode + city; postcode + city alone gives `null`, and no district is derived.
     * The displayed `Miete` is not labelled cold or warm and deliberately maps to neither rent field.
-  * `immowelt.ts` (`immowelt@1.0.1`) expects **link-resolved** plain text:
-    * Each listing is anchored by `https://www.immowelt.de/expose/<uuid>` directly above `Mehr Informationen`.
+  * `immowelt.ts` (`immowelt@1.0.2`) expects **link-resolved** plain text:
+    * Each listing is anchored by `https://www.immowelt.de/expose/<id>` directly above `Mehr Informationen`. The `<id>` is either a UUID or exactly 12 ASCII letters/digits (e.g. `26temfacszzi`), normalized to lowercase. Nothing looser (added in 1.0.2).
     * Raw alerts only contain personalized `click.by.immowelt.de/?qs=…` links, so they are not recognized and end up `unrecognized`.
     * The parser itself makes no network requests. Link resolution happens in the ingestion layer (next bullet).
     * Real mail has a tracking link before every content line; URL-only lines inside a listing block are ignored, so a link can never become the title. This was fixed in 1.0.1.
     * `rentCold` is trusted because the alert labels it `Kaltmiete` (it may contain NBSP).
-    * `district` comes directly from the `<district>,` / `Leipzig` / `(<postcode>)` lines.
+    * `district` comes directly from the three-line location `<district>,` / `<context>` / `(<postcode>)`. The context line is any plain name (`Leipzig`, `Süd`, …) and is not stored (relaxed from `Leipzig`-only in 1.0.2).
+    * Fixtures: `alert-01.json` (new listings) and `alert-02-alternatives.json` ("Alternative Angebote" with an `Abweichende Lage` label above each listing).
     * There is no street address (`address` is null), warm rent stays unknown, and the postcode is not stored.
+  * `hildebrandPartner.ts` (`hildebrand-partner@1.0.0`, source `hildebrand-partner`) reads the **fetched results page**, not the email:
+    * The search-agent email (sender `wp-immomakler@hildebrand-partner.com`) has no listings, only a private link under the exact label `Suchergebnisse ansehen`. `findResultsLink()` takes the bracketed URL on the next line and validates it with `parseResultsUrl()`: https, host exactly `hildebrand-partner.com`, path exactly `/immobilien/`, non-empty `confirm`, no fragment, credentials, port or delete callback. The edit link (same URL + `#flash-message`) and the delete link are never used.
+    * Preprocessing fetches that page and passes it as `email.fetchedPage` (see "Preprocessing"). Without it, `parse()` throws a safe error: `failed`, not `unrecognized`. A Hildebrand mail without the label stays `unrecognized`.
+    * WP-ImmoMakler markup, parsed with `node-html-parser` (the only HTML parser; entities decoded): one listing per `.property-container`, deduplicated by Objekt ID. The "Wir haben N Angebote" paginator appears twice and is never used for counting.
+    * `sourceId` is the `Objekt ID:` row (e.g. `Kantstr. 37a_WE12`); a card without it is skipped. `sourceUrl` is the public `/immobilien/<slug>/` title link, never the results URL. `rooms`, `sqm` (`Wohnfläche`), `rentCold` (`Kaltmiete`) and `rentWarm` (`Warmmiete`) come from their labelled rows (German numbers, `1.398,00 EUR`). `imageUrl` is the thumbnail `src`.
+    * `district` and `address` are null (the subtitle `04275 Leipzig, Etagenwohnung` has neither; the title is not interpreted). `Verfügbar ab` has no field and is ignored. Without a district there is no fingerprint.
   * `immoscout.ts` stores `sourceUrl` without its query string (real alerts carry personal tracking parameters) and takes `sourceId` from `/email/expose/<digits>`.
   * `immoscout.ts` sets no structured features. That alert format has no warm rent, so ImmoScout apartments get no fingerprint.
   * Each fixture test is a regression test: changing its expectations needs a deliberate parser migration. It never throws; parser errors are returned as `failures` with status `parsed | unrecognized | failed`.
@@ -123,7 +132,7 @@ Pure core (no I/O, never imports Supabase):
 
 * Schema source of truth: `supabase/migrations/` (plain SQL, Supabase CLI naming). Never change the schema in the Supabase dashboard without a matching migration.
 * Tables: `emails` (raw inbound mail; `provider_message_id` unique for idempotency; `parse_status` `pending | parsed | unrecognized | failed`) and `apartments` (`email_id` → `emails` `on delete set null`).
-* Sources: `immoscout`, `immowelt`, `kleinanzeigen`, `wg-gesucht`, `lwb`, `ohne-makler` (added by `20260924180000_ohne_makler_source.sql`), and `other` as the fallback.
+* Sources: `immoscout`, `immowelt`, `kleinanzeigen`, `wg-gesucht`, `lwb`, `ohne-makler` (added by `20260924180000_ohne_makler_source.sql`), `hildebrand-partner` (added by `20260928120000_hildebrand_partner_source.sql`), and `other` as the fallback.
 * Value sets are CHECK constraints, not enum types. When a domain enum in `src/lib/domain/` changes, change the matching constraint in a new migration.
 * Feature columns are nullable booleans with no default (null = unknown). `fingerprint` is indexed, not unique, and never used for merging.
 * `unique nulls distinct (source, source_id)` is a plain constraint, not a partial index, so `upsert(onConflict: "source,source_id")` can target it.
@@ -212,7 +221,7 @@ HTTP semantics (Resend retries every non-2xx, at 5s, 5m, 30m, 2h, 5h, 10h):
 * **400:** bad or missing signature, or a malformed signed payload.
 * **200:** an ignored event type, a duplicate, or a processed email, including `unrecognized`, and `failed` when a parser threw.
 * **502:** the Receiving API failed before anything was stored.
-* **500:** missing config or a storage failure.
+* **500:** missing config, a storage failure, or a transient preprocessing failure (Immowelt link resolution, Hildebrand results fetch).
 
 Responses and logs never contain email content or secrets; the `emails` table is the debugging source of truth.
 
@@ -239,11 +248,15 @@ Fixtures:
 Preprocessing (`src/lib/ingest/preprocess.ts`): runs inside `processStoredEmail()` before parsing, for live ingestion **and** reprocessing alike. The resolved text is used for parsing only; the stored raw email never changes.
 
 * Real Immowelt mail is link-resolved by `src/lib/ingest/immoweltLinks.ts`. Only the `https://click.by.immowelt.de/?qs=…` link directly above each exact `Mehr Informationen` line is resolved (6 requests for a 6-listing alert, not every tracker).
-* It uses `fetch` with `redirect: "manual"`, a timeout, and at most 5 hops, following `Location` headers only until a canonical `https://www.immowelt.de/expose/<uuid>` appears. The expose page is never fetched, and any other destination is rejected.
+* It uses `fetch` with `redirect: "manual"`, a timeout, and at most 5 hops, following `Location` headers only until a canonical `https://www.immowelt.de/expose/<id>` appears. The expose page is never fetched, and any other destination is rejected.
+* The only allowed intermediate hops are another tracker link and `https://www.immowelt.de/wl-cdp/<12 alphanumerics>` (evidenced chain: tracker → wl-cdp → expose). A wl-cdp URL is never the result, and the Location it answers with must be the expose URL.
 * It is all or nothing: one failed link means stage `preprocess`, the email is marked `failed` with a token-free error, the webhook returns 500 so Resend retries, and no partial parse happens.
 * Tracking URLs and tokens are never logged, never stored and never part of error messages.
 * Already-resolved text (the reviewed fixture) needs no request. `ingest:fixture --dry-run` is offline unless `--allow-network` is given.
-* Tests never touch the network: `src/test/setup.ts` replaces `fetch` with one that throws, and resolver tests inject a fake fetch with synthetic tokens (`src/lib/ingest/testing/immowelt.ts`).
+* Hildebrand & Partner mail is completed by `src/lib/ingest/hildebrandResults.ts`: only a link that passed `findResultsLink()` is fetched, once, with a plain `GET` (default server-side fetch, no custom User-Agent), `redirect: "manual"` (a redirect is an error), the same timeout, and a required 2xx `text/html` response. The HTML becomes `email.fetchedPage` for parsing only and is never stored.
+* A failed fetch (network, timeout, non-2xx, wrong content type) is a transient preprocessing failure: `failed` with a token-free `HildebrandFetchError` message, no apartments, webhook 500, retried. An invalid or missing results link is deterministic: nothing is fetched and the parser reports `failed` (200, no retry).
+* **Token rule:** the results URL carries the search agent's `confirm` credential. It is never logged, never in an error message, never stored anywhere besides the raw email that already contains it, and never an apartment's `sourceUrl` or `sourceId`.
+* Tests never touch the network: `src/test/setup.ts` replaces `fetch` with one that throws, and resolver/fetch tests inject a fake fetch with synthetic tokens (`src/lib/ingest/testing/immowelt.ts`, `src/lib/ingest/hildebrandResults.test.ts`).
 
 Reprocessing: `reprocessStoredEmail()` in `pipeline.ts` (`npm run reprocess:email`).
 
@@ -268,6 +281,8 @@ npm test             # vitest run (all tests once)
 npm run test:watch   # vitest in watch mode
 npm run seed         # upsert synthetic apartments (needs .env.local)
 npm run ingest:fixture -- <file.json> [--dry-run]   # run a fixture through the pipeline (--dry-run: no DB)
+npm run ingest:fixture -- <file.json> --dry-run --allow-network --debug-network   # dev only: sanitized per-hop redirect diagnostics on stderr
+npm run ingest:fixture -- <email.json> --dry-run --page=<page.html>   # offline: serve a page fixture instead of fetching the linked results page
 npm run capture:email -- <resend-email-id> <platform> # save a raw capture to fixtures/private/ (gitignored)
 npm run reprocess:email -- <provider_message_id>     # re-run one stored email through the current parsers (uses the DB, never Resend)
 npx vitest run src/lib/scoring.test.ts   # single test file

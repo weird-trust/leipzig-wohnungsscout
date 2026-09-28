@@ -66,11 +66,14 @@ export function syntheticRawImmoweltText(): string {
 
 export interface FakeFetch {
   fetch: typeof fetch;
-  /** qs values requested, in order. */
+  /** qs values requested, in order (the path for URLs without qs, e.g. "/wl-cdp/…"). */
   requested: string[];
 }
 
-/** A fetch that answers per qs token: a Location to redirect to, or an error. */
+/**
+ * A fetch that answers per qs token (or per path for URLs without qs, such
+ * as "/wl-cdp/<ID>"): a Location to redirect to, or an error.
+ */
 export function fakeTracker(
   routes: Record<string, { location?: string; status?: number } | "network-error">,
 ): FakeFetch {
@@ -78,7 +81,7 @@ export function fakeTracker(
   const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
     if (init?.redirect !== "manual") throw new Error("resolver must use redirect: manual");
     const url = new URL(input instanceof Request ? input.url : input);
-    const token = url.searchParams.get("qs") ?? "";
+    const token = url.searchParams.get("qs") ?? url.pathname;
     requested.push(token);
     const route = routes[token];
     if (route === undefined) throw new Error(`unexpected request in test`);

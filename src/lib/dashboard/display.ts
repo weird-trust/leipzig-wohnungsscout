@@ -40,6 +40,7 @@ export const SOURCE_LABELS: Record<Source, string> = {
   "wg-gesucht": "WG-Gesucht",
   lwb: "LWB",
   "ohne-makler": "Ohne-Makler",
+  "hildebrand-partner": "Hildebrand & Partner",
   other: "Andere Quelle",
 };
 

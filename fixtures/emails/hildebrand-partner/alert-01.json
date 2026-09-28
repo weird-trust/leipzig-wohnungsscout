@@ -1,0 +1,11 @@
+{
+  "providerMessageId": "fixture-hildebrand-partner-alert-01",
+  "receivedAt": "2026-09-28T07:23:22.241Z",
+  "from": "wp-immomakler@hildebrand-partner.com",
+  "to": [
+    "fixture@example.invalid"
+  ],
+  "subject": "Neue Immobilien-Suchergebnisse von Hildebrand und Partner!",
+  "text": "Neue Immobilien-Suchergebnisse von Hildebrand und Partner!\n\nHallo,\n\nbasierend auf Ihrem Suchauftrag vom 24.09.2026 um 15:27 Uhr:\n1600.00, NaN, 150.00, 5.00, Wohnen, Leipzig, Wohnung, Miete, NaN\nkönnen Sie sich unter folgendem Link eine neue Immobilie ansehen.\n\nSuchergebnisse ansehen\n[https://hildebrand-partner.com/immobilien/?bis-kaltmiete=1600.00&bis-kaufpreis=NaN&bis-qm=150.00&bis-zimmer=5.00&nutzungsart=wohnen&objekt-id&ort=leipzig&typ=wohnung&vermarktungsart=miete&von-kaufpreis=NaN&status=offen&since=1790580184&confirm=FIXTURE_TOKEN]\n\nIhr Suchauftrag ist wie folgt eingestellt:\n- Eine E-Mail-Benachrichtigung über neue Angebote erfolgt direkt nach\nVeröffentlichung\n\nSie können diesen Suchauftrag bearbeiten oder löschen (Links weiter unten).\n\nWir freuen uns auf Ihre Nachricht!\n\nMit freundlichen Grüßen\nIhr Team von Hildebrand und Partner\n\nSie erhalten diese E-Mail, weil Sie einen Suchauftrag auf unserer Website\nerstellt haben.\nSuchauftrag bearbeiten\n[https://hildebrand-partner.com/immobilien/?bis-kaltmiete=1600.00&bis-kaufpreis=NaN&bis-qm=150.00&bis-zimmer=5.00&nutzungsart=wohnen&objekt-id&ort=leipzig&typ=wohnung&vermarktungsart=miete&von-kaufpreis=NaN&status=offen&since=1790580184&confirm=FIXTURE_TOKEN#flash-message]\nSuchauftrag löschen\n[https://hildebrand-partner.com/immobilien/?callback=delete_searchagent&delete=FIXTURE_TOKEN]\n\nDiese Anfrage wurde versendet über die Website \"Hildebrand und Partner\"\nhttps://hildebrand-partner.com\n\n\n\npowered by WP-ImmoMakler\n[https://www.wp-immomakler.de/?utm_source=plugin&utm_medium=email&utm_campaign=html_mail_footer]",
+  "html": null
+}

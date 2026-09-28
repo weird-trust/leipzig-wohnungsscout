@@ -41,10 +41,10 @@ describe("Immowelt alert-01 (real fixture, link-resolved)", () => {
     expect(detectSource(email)).toEqual({ source: "immowelt", matchedBy: "sender" });
   });
 
-  it("is selected by parseEmail() as immowelt@1.0.1", () => {
+  it("is selected by parseEmail() as immowelt@1.0.2", () => {
     const outcome = parseEmail(email);
     expect(outcome.status).toBe("parsed");
-    expect(outcome.parserVersion).toBe("immowelt@1.0.1");
+    expect(outcome.parserVersion).toBe("immowelt@1.0.2");
     expect(outcome.failures).toEqual([]);
     expect(outcome.apartments).toEqual(apartments);
   });
@@ -196,7 +196,25 @@ describe("parseExposeUrl", () => {
     expect(parseExposeUrl(`https://www.immowelt.de/expose/${ID}#bilder`)).toEqual(CANONICAL);
   });
 
+  it("accepts a 12-character alphanumeric id, normalized to lowercase", () => {
+    const short = { sourceUrl: "https://www.immowelt.de/expose/26temfacszzi", sourceId: "26temfacszzi" };
+    expect(parseExposeUrl("https://www.immowelt.de/expose/26temfacszzi")).toEqual(short);
+    expect(parseExposeUrl("https://www.immowelt.de/expose/26TEMFACSZZI")).toEqual(short);
+    expect(parseExposeUrl("https://www.immowelt.de/expose/26TemFacSzzi?utm_source=mail#bilder")).toEqual(short);
+  });
+
+  it("keeps UUID ids unchanged (lowercased)", () => {
+    expect(parseExposeUrl(`https://www.immowelt.de/expose/${ID.toUpperCase()}`)).toEqual(CANONICAL);
+  });
+
   it.each([
+    ["11-character id", "https://www.immowelt.de/expose/26temfacszz"],
+    ["13-character id", "https://www.immowelt.de/expose/26temfacszzia"],
+    ["id with punctuation", "https://www.immowelt.de/expose/26temfac-szz"],
+    ["id with underscore", "https://www.immowelt.de/expose/26temfac_szz"],
+    ["id with a non-ASCII letter", "https://www.immowelt.de/expose/26temfacszzä"],
+    ["arbitrary slug", "https://www.immowelt.de/expose/3-zimmer-wohnung-leipzig"],
+    ["wl-cdp URL", "https://www.immowelt.de/wl-cdp/26TEMFACSZZI"],
     ["wrong host", `https://immowelt.de/expose/${ID}`],
     ["tracking host", "https://click.by.immowelt.de/?qs=abc"],
     ["malformed uuid", "https://www.immowelt.de/expose/0fe5b1ed-db33-4796-bbd8"],
@@ -220,9 +238,91 @@ describe("districtFromLocation", () => {
     ["Leipzig as the comma line", ["Leipzig,", "Leipzig", "(04275)"]],
     ["postcode as the comma line", ["04275,", "Leipzig", "(04275)"]],
     ["no postcode line", ["Südvorstadt,", "Leipzig"]],
-    ["another city", ["Mitte,", "Berlin", "(10115)"]],
     ["district without comma", ["Südvorstadt", "Leipzig", "(04275)"]],
+    ["missing postcode with another context", ["Dölitz-Dösen,", "Süd"]],
+    ["only two lines", ["Dölitz-Dösen,", "(04279)"]],
+    ["an extra line between district and context", ["Dölitz-Dösen,", "Süd", "Leipzig", "(04279)"]],
+    ["a context line with digits", ["Dölitz-Dösen,", "04279 Süd", "(04279)"]],
+    ["a context line with a comma", ["Dölitz-Dösen,", "Süd, Leipzig", "(04279)"]],
+    ["a four-digit postcode", ["Dölitz-Dösen,", "Süd", "(0427)"]],
+    ["a district line with digits", ["3 Zimmer,", "Süd", "(04279)"]],
   ])("returns null for %s", (_, lines) => {
     expect(districtFromLocation(lines)).toBeNull();
+  });
+
+  it("accepts any plain location-context line, e.g. Süd, without storing it", () => {
+    expect(districtFromLocation([" Dölitz-Dösen, ", " ", " Süd", " (04279)", "  "])).toBe("Dölitz-Dösen");
+    expect(districtFromLocation([" Reudnitz-Thonberg, ", " ", " Leipzig", " (04317)"])).toBe("Reudnitz-Thonberg");
+    // The middle line is structural, not a city check (1.0.2 dropped the "Leipzig" requirement).
+    expect(districtFromLocation(["Mitte,", "Berlin", "(10115)"])).toBe("Mitte");
+  });
+});
+
+describe("Immowelt alert-02-alternatives (real fixture, link-resolved)", () => {
+  const alternatives = loadFixture("fixtures/emails/immowelt/alert-02-alternatives.json");
+  const parsed = immoweltParser.parse(alternatives);
+  const stored = parsed.map((apartment) => toNewApartment(apartment, "email-row"));
+
+  it("is parsed by immowelt@1.0.2", () => {
+    expect(detectSource(alternatives)).toEqual({ source: "immowelt", matchedBy: "sender" });
+    const outcome = parseEmail(alternatives);
+    expect(outcome).toMatchObject({ status: "parsed", parserVersion: "immowelt@1.0.2", failures: [] });
+    expect(outcome.apartments).toEqual(parsed);
+  });
+
+  it("produces exactly the two listings, UUID and short id", () => {
+    expect(parsed.map((a) => [a.sourceId, a.sourceUrl])).toEqual([
+      ["918f96ec-1cb0-47a8-ae27-64ec04bd8f02", "https://www.immowelt.de/expose/918f96ec-1cb0-47a8-ae27-64ec04bd8f02"],
+      ["26temfacszzi", "https://www.immowelt.de/expose/26temfacszzi"],
+    ]);
+  });
+
+  it("keeps each title with its own rent, rooms, area and district", () => {
+    const base = { source: "immowelt", address: null, rentWarm: null, floor: null, description: null, imageUrl: null };
+    expect(parsed).toEqual([
+      {
+        ...base,
+        sourceId: "918f96ec-1cb0-47a8-ae27-64ec04bd8f02",
+        sourceUrl: "https://www.immowelt.de/expose/918f96ec-1cb0-47a8-ae27-64ec04bd8f02",
+        title: "renovierte attraktive 3 Raum Wohnung in Dölitz Dös...",
+        rentCold: 733,
+        rooms: 3,
+        sqm: 75,
+        district: "Dölitz-Dösen", // "Süd" context line, not stored
+      },
+      {
+        ...base,
+        sourceId: "26temfacszzi",
+        sourceUrl: "https://www.immowelt.de/expose/26temfacszzi",
+        title: "Tolle Altbau-Wohnung mit Balkon mitten in Reudnitz...",
+        rentCold: 740,
+        rooms: 3,
+        sqm: 92,
+        district: "Reudnitz-Thonberg",
+      },
+    ]);
+  });
+
+  it("never uses the \"Abweichende Lage\" label or the headline as title or district", () => {
+    expect(alternatives.text).toContain("Abweichende Lage");
+    expect(alternatives.text).toContain("Alternative Angebote für dich in Altlindenau");
+    for (const apartment of parsed) {
+      expect([apartment.title, apartment.district]).not.toContain("Abweichende Lage");
+      expect(apartment.title).not.toMatch(/Alternative Angebote|Abweichende Lage/);
+    }
+  });
+
+  it("extracts only what the titles say through the generic feature step", () => {
+    expect(stored.map(({ balcony, buildingType }) => ({ balcony, buildingType }))).toEqual([
+      { balcony: null, buildingType: "unknown" },
+      { balcony: true, buildingType: "altbau" }, // "Altbau-Wohnung mit Balkon"
+    ]);
+    for (const apartment of stored) expect(apartment).toMatchObject({ rentWarm: null, address: null });
+  });
+
+  it("contains no tracking URL or token anywhere, in the fixture or in any apartment field", () => {
+    expect(alternatives.text).not.toMatch(/click\.by\.immowelt|qs=/);
+    expect(alternatives.html).toBeNull();
+    expect(JSON.stringify(stored)).not.toMatch(/click\.by\.immowelt|qs=|wl-cdp/);
   });
 });

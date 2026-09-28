@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   findListingTrackingLinks,
+  formatHopDiagnostic,
+  type HopDiagnostic,
   ImmoweltResolutionError,
   parseTrackingUrl,
+  parseWlCdpUrl,
   resolveImmoweltListingLinks,
   resolveTrackingUrl,
+  sanitizeDestination,
 } from "@/lib/ingest/immoweltLinks";
 import {
   allListingRoutes,
@@ -48,6 +52,28 @@ describe("parseTrackingUrl", () => {
   });
 });
 
+describe("parseWlCdpUrl", () => {
+  it("accepts exactly https://www.immowelt.de/wl-cdp/<12 alphanumerics>, ignoring query and fragment", () => {
+    expect(parseWlCdpUrl("https://www.immowelt.de/wl-cdp/26TEMFACSZZI")?.pathname).toBe("/wl-cdp/26TEMFACSZZI");
+    expect(parseWlCdpUrl("https://www.immowelt.de/wl-cdp/26temfacszzi?x=1#y")).not.toBeNull();
+  });
+
+  it.each([
+    ["http", "http://www.immowelt.de/wl-cdp/26TEMFACSZZI"],
+    ["other host", "https://immowelt.de/wl-cdp/26TEMFACSZZI"],
+    ["tracker host", "https://click.by.immowelt.de/wl-cdp/26TEMFACSZZI"],
+    ["credentials", "https://user:pw@www.immowelt.de/wl-cdp/26TEMFACSZZI"],
+    ["explicit port", "https://www.immowelt.de:8443/wl-cdp/26TEMFACSZZI"],
+    ["11-character id", "https://www.immowelt.de/wl-cdp/26TEMFACSZZ"],
+    ["13-character id", "https://www.immowelt.de/wl-cdp/26TEMFACSZZIA"],
+    ["id with punctuation", "https://www.immowelt.de/wl-cdp/26TEMFAC-SZZ"],
+    ["extra path segment", "https://www.immowelt.de/wl-cdp/26TEMFACSZZI/x"],
+    ["other path", "https://www.immowelt.de/wl-cdpx/26TEMFACSZZI"],
+  ])("rejects %s", (_, url) => {
+    expect(parseWlCdpUrl(url)).toBeNull();
+  });
+});
+
 describe("resolveTrackingUrl", () => {
   it("returns the canonical expose URL from the redirect Location, without fetching it", async () => {
     const fake = fakeTracker({ "SYNTH-1": { location: expose(ID) } });
@@ -69,8 +95,62 @@ describe("resolveTrackingUrl", () => {
     expect(fake.requested).toEqual(["SYNTH-1", "SYNTH-HOP"]);
   });
 
+  it("follows the evidenced tracker → wl-cdp → expose chain and returns only the expose URL", async () => {
+    const fake = fakeTracker({
+      "SYNTH-1": { location: "https://www.immowelt.de/wl-cdp/26TEMFACSZZI" },
+      "/wl-cdp/26TEMFACSZZI": { location: "https://www.immowelt.de/expose/26temfacszzi", status: 301 },
+    });
+    expect(await resolveTrackingUrl(new URL(tracker("SYNTH-1")), fake)).toBe(
+      "https://www.immowelt.de/expose/26temfacszzi",
+    );
+    expect(fake.requested).toEqual(["SYNTH-1", "/wl-cdp/26TEMFACSZZI"]); // expose never fetched
+  });
+
+  it("accepts a relative expose Location from the wl-cdp hop", async () => {
+    const fake = fakeTracker({
+      "SYNTH-1": { location: "https://www.immowelt.de/wl-cdp/26TEMFACSZZI" },
+      "/wl-cdp/26TEMFACSZZI": { location: "/expose/26temfacszzi" },
+    });
+    expect(await resolveTrackingUrl(new URL(tracker("SYNTH-1")), fake)).toBe(
+      "https://www.immowelt.de/expose/26temfacszzi",
+    );
+  });
+
+  it("never returns a wl-cdp URL: a non-redirect wl-cdp answer fails", async () => {
+    const fake = fakeTracker({
+      "SYNTH-1": { location: "https://www.immowelt.de/wl-cdp/26TEMFACSZZI" },
+      "/wl-cdp/26TEMFACSZZI": { status: 200 },
+    });
+    expect(await errorOf(resolveTrackingUrl(new URL(tracker("SYNTH-1")), fake))).toBeInstanceOf(
+      ImmoweltResolutionError,
+    );
+  });
+
+  it.each([
+    ["another wl-cdp hop", "https://www.immowelt.de/wl-cdp/ABCDEFGHIJKL"],
+    ["a tracker", tracker("SYNTH-2")],
+    ["an arbitrary immowelt page", "https://www.immowelt.de/suche/leipzig"],
+    ["a malformed expose id", "https://www.immowelt.de/expose/26temfac-szz"],
+    ["another host", "https://www.example.com/expose/26temfacszzi"],
+  ])("fails safely when wl-cdp redirects to %s", async (_, location) => {
+    const fake = fakeTracker({
+      "SYNTH-1": { location: "https://www.immowelt.de/wl-cdp/26TEMFACSZZI" },
+      "/wl-cdp/26TEMFACSZZI": { location },
+      "/wl-cdp/ABCDEFGHIJKL": { location: expose(ID) },
+      "SYNTH-2": { location: expose(ID) },
+    });
+    const error = await errorOf(resolveTrackingUrl(new URL(tracker("SYNTH-1")), fake));
+    expect(error.message).toContain("unexpected redirect destination");
+    expect(fake.requested).toEqual(["SYNTH-1", "/wl-cdp/26TEMFACSZZI"]);
+  });
+
   it.each([
     ["unexpected redirect host", "https://www.example.com/landing"],
+    ["malformed wl-cdp id", "https://www.immowelt.de/wl-cdp/26TEMFAC-SZZ"],
+    ["wl-cdp id of the wrong length", "https://www.immowelt.de/wl-cdp/26TEMFACSZZIX"],
+    ["http wl-cdp", "http://www.immowelt.de/wl-cdp/26TEMFACSZZI"],
+    ["relative wl-cdp path on the tracker host", "/wl-cdp/26TEMFACSZZI"],
+    ["other immowelt path", "https://www.immowelt.de/wl-other/26TEMFACSZZI"],
     ["arbitrary immowelt page", "https://www.immowelt.de/suche/leipzig"],
     ["malformed expose uuid", "https://www.immowelt.de/expose/not-a-uuid"],
     ["extra expose path", `${expose(ID)}/bilder`],
@@ -215,5 +295,73 @@ describe("findListingTrackingLinks / resolveImmoweltListingLinks", () => {
     const error = await errorOf(resolveImmoweltListingLinks(text, fake));
     expect(error.message).toContain("unsupported listing link");
     expect(fake.requested).toEqual([]);
+  });
+});
+
+describe("development-only hop diagnostics", () => {
+  const SECRETS = /SYNTH|qs=|26TEMFACSZZI|26temfacszzi|utm|bilder|evil|0fe5b1ed/i;
+
+  it.each([
+    [tracker("SYNTH-SECRET"), { host: "click.by.immowelt.de", path: "/" }],
+    ["https://click.by.immowelt.de/redirect?qs=SYNTH", { host: "click.by.immowelt.de", path: "/other" }],
+    ["https://www.immowelt.de/wl-cdp/26TEMFACSZZI?utm=1#x", { host: "www.immowelt.de", path: "/wl-cdp/*" }],
+    ["https://www.immowelt.de/expose/26temfacszzi#bilder", { host: "www.immowelt.de", path: "/expose/*" }],
+    ["https://www.immowelt.de/suche/leipzig", { host: "www.immowelt.de", path: "/other" }],
+    ["https://evil.example/expose/26temfacszzi", { host: "other", path: "/other" }],
+  ])("sanitizes %s to a known host and path class", (url, expected) => {
+    expect(sanitizeDestination(new URL(url))).toEqual(expected);
+  });
+
+  it("reports the tracker → wl-cdp → 403 chain without any token, id, query or fragment", async () => {
+    const hops: HopDiagnostic[] = [];
+    const fake = fakeTracker({
+      "SYNTH-SECRET": { location: "https://www.immowelt.de/wl-cdp/26TEMFACSZZI?utm=1#x" },
+      "/wl-cdp/26TEMFACSZZI": { status: 403 },
+    });
+    const error = await errorOf(
+      resolveTrackingUrl(new URL(tracker("SYNTH-SECRET")), { ...fake, onHop: (hop) => hops.push(hop) }),
+    );
+    expect(error.message).toContain("unexpected status 403");
+    const lines = hops.flatMap(formatHopDiagnostic);
+    expect(lines).toEqual([
+      "hop 1: click.by.immowelt.de / -> 302",
+      "  location -> www.immowelt.de /wl-cdp/*",
+      "hop 2: www.immowelt.de /wl-cdp/* -> 403",
+    ]);
+    expect(JSON.stringify(hops)).not.toMatch(SECRETS);
+  });
+
+  it("reports network errors, timeouts and unparsable Locations safely", async () => {
+    const hops: HopDiagnostic[] = [];
+    const onHop = (hop: HopDiagnostic) => hops.push(hop);
+    await errorOf(resolveTrackingUrl(new URL(tracker("SYNTH-A")), { ...fakeTracker({ "SYNTH-A": "network-error" }), onHop }));
+    const hanging = ((_: unknown, init?: RequestInit) =>
+      new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)))) as typeof fetch;
+    await errorOf(resolveTrackingUrl(new URL(tracker("SYNTH-B")), { fetch: hanging, timeoutMs: 20, onHop }));
+    await errorOf(
+      resolveTrackingUrl(new URL(tracker("SYNTH-C")), { ...fakeTracker({ "SYNTH-C": { location: "https://[bad" } }), onHop }),
+    );
+    expect(hops.flatMap(formatHopDiagnostic)).toEqual([
+      "hop 1: click.by.immowelt.de / -> network error",
+      "hop 1: click.by.immowelt.de / -> timeout",
+      "hop 1: click.by.immowelt.de / -> 302",
+      "  location -> invalid",
+    ]);
+    expect(JSON.stringify(hops)).not.toMatch(SECRETS);
+  });
+
+  it("numbers listings when resolving a whole email, and stays silent without onHop", async () => {
+    const hops: HopDiagnostic[] = [];
+    const text = [tracker("SYNTH-A"), "Mehr Informationen", tracker("SYNTH-B"), "Mehr Informationen"].join("\n");
+    const routes = { "SYNTH-A": { location: expose(ID) }, "SYNTH-B": { location: expose(EXPOSE_IDS[1]) } };
+    await resolveImmoweltListingLinks(text, { ...fakeTracker(routes), onHop: (hop) => hops.push(hop) });
+    expect(hops.flatMap(formatHopDiagnostic).sort()).toEqual([
+      "  location -> www.immowelt.de /expose/*",
+      "  location -> www.immowelt.de /expose/*",
+      "listing 1 hop 1: click.by.immowelt.de / -> 302",
+      "listing 2 hop 1: click.by.immowelt.de / -> 302",
+    ]);
+    // Default (production) options have no hook: nothing to call, same result.
+    expect((await resolveImmoweltListingLinks(text, fakeTracker(routes))).resolutions).toBe(2);
   });
 });

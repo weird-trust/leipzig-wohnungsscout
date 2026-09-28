@@ -1,5 +1,6 @@
 import type { IncomingEmail } from "@/lib/domain/email";
 import { genericParser } from "@/lib/parsers/generic";
+import { hildebrandPartnerParser } from "@/lib/parsers/hildebrandPartner";
 import { immoscoutParser } from "@/lib/parsers/immoscout";
 import { immoweltParser } from "@/lib/parsers/immowelt";
 import { kleinanzeigenParser } from "@/lib/parsers/kleinanzeigen";
@@ -19,6 +20,7 @@ export const PLATFORM_PARSERS: readonly ApartmentParser[] = [
   kleinanzeigenParser, // fixtures/emails/kleinanzeigen/
   ohneMaklerParser, // fixtures/emails/ohne-makler/
   immoweltParser, // fixtures/emails/immowelt/ (expects link-resolved text)
+  hildebrandPartnerParser, // fixtures/emails/ + fixtures/pages/hildebrand-partner/ (expects the fetched results page)
 ];
 
 function errorMessage(error: unknown): string {

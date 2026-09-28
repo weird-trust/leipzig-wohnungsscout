@@ -3,7 +3,9 @@ import type { ApartmentParser, ParsedApartment } from "@/lib/parsers/types";
 
 /**
  * Immowelt saved-search alert parser, built against the real plain-text
- * alert in fixtures/emails/immowelt/alert-01.json (regression fixture).
+ * alerts in fixtures/emails/immowelt/ (regression fixtures): alert-01 (new
+ * listings) and alert-02-alternatives ("Alternative Angebote" with an
+ * "Abweichende Lage" label above each listing).
  *
  * It expects LINK-RESOLVED text: the raw email only has personalized
  * click.by.immowelt.de tracking links, and resolving the one above each
@@ -17,9 +19,9 @@ import type { ApartmentParser, ParsedApartment } from "@/lib/parsers/types";
  *   Inkl. Aufzug und neuer Einbauküche!  ← title (may be truncated with "...")
  *   3 Zimmer . 85 m²
  *    Südvorstadt,                        ← district
- *    Leipzig
- *    (04275)
- *   https://www.immowelt.de/expose/<uuid>
+ *    Leipzig                             ← location context ("Leipzig", "Süd", …); not stored
+ *    (04275)                             ← postcode; not stored
+ *   https://www.immowelt.de/expose/<id>  ← UUID or 12-character alphanumeric id
  *   Mehr Informationen                  ← anchor
  *
  * In real (resolved) mail, every content line above is preceded by another
@@ -30,15 +32,24 @@ import type { ApartmentParser, ParsedApartment } from "@/lib/parsers/types";
  */
 
 const LISTING_HOST = "www.immowelt.de";
+/**
+ * Both evidenced expose id forms: a UUID ("0fe5b1ed-db33-4796-bbd8-2c2ee9c9e459")
+ * or exactly 12 ASCII letters/digits ("26temfacszzi"). Nothing looser.
+ */
 const EXPOSE_PATH =
-  /^\/expose\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+  /^\/expose\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-z]{12})$/i;
 const ANCHOR = "Mehr Informationen";
 const CITY = "Leipzig";
 const POSTCODE_LINE = /^\(\d{5}\)$/;
+/** The middle location line: a plain name like "Leipzig" or "Süd" (letters, spaces, hyphens). */
+const LOCATION_CONTEXT = /^\p{L}[\p{L} .-]{0,39}$/u;
 /** NBSP and other Unicode spaces used by the real alert (e.g. "1.199 €"). */
 const UNICODE_SPACES = /[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g;
 
-/** Canonical listing identity for exactly https://www.immowelt.de/expose/<uuid>. */
+/**
+ * Canonical listing identity for exactly https://www.immowelt.de/expose/<id>
+ * (UUID or 12-character alphanumeric). Lowercased; query and fragment dropped.
+ */
 export function parseExposeUrl(value: string): { sourceUrl: string; sourceId: string } | null {
   let url: URL;
   try {
@@ -80,19 +91,20 @@ export function parseRoomsAndArea(line: string): { rooms: number | null; sqm: nu
 }
 
 /**
- * The district in the " Südvorstadt, / Leipzig / (04275)" location: the line
- * ending in a comma directly before "Leipzig" + postcode. Anything else → null.
+ * The district in the three-line location "<district>, / <context> / (<postcode>)",
+ * e.g. " Südvorstadt, / Leipzig / (04275)" or " Dölitz-Dösen, / Süd / (04279)":
+ * the comma line two lines above the first postcode line. The context line
+ * must be a plain name; context and postcode are not returned. Anything
+ * else → null (no guessing).
  */
 export function districtFromLocation(lines: readonly string[]): string | null {
   const content = lines.map(normalizeSpaces).filter((line) => line !== "");
-  for (let i = 1; i < content.length - 1; i++) {
-    if (content[i] !== CITY || !POSTCODE_LINE.test(content[i + 1])) continue;
-    const candidate = content[i - 1];
-    if (!candidate.endsWith(",")) return null;
-    const district = candidate.slice(0, -1).trim();
-    return district !== "" && district !== CITY && !/\d/.test(district) ? district : null;
-  }
-  return null;
+  const postcode = content.findIndex((line) => POSTCODE_LINE.test(line));
+  if (postcode < 2) return null;
+  const [candidate, context] = [content[postcode - 2], content[postcode - 1]];
+  if (!LOCATION_CONTEXT.test(context) || !candidate.endsWith(",")) return null;
+  const district = candidate.slice(0, -1).trim();
+  return district !== "" && district !== CITY && !/[\d,]/.test(district) ? district : null;
 }
 
 interface Anchor {
@@ -159,7 +171,7 @@ function textLines(email: IncomingEmail): string[] {
 
 export const immoweltParser: ApartmentParser = {
   name: "immowelt",
-  version: "1.0.1",
+  version: "1.0.2",
 
   canParse(email: IncomingEmail): boolean {
     return findAnchors(textLines(email)).length > 0;

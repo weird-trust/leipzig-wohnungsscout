@@ -6,6 +6,7 @@ import type {
   NewInboundEmail,
   StoredEmail,
 } from "@/lib/domain/email";
+import { HildebrandFetchError } from "@/lib/ingest/hildebrandResults";
 import { ImmoweltResolutionError } from "@/lib/ingest/immoweltLinks";
 import { toNewApartment } from "@/lib/ingest/normalize";
 import { defaultPreprocess, type EmailPreprocessor } from "@/lib/ingest/preprocess";
@@ -143,9 +144,11 @@ async function persistApartments(
   return outcome.apartments.length;
 }
 
-/** Safe to store/log: resolver errors are designed to be token-free, others are not trusted. */
+/** Safe to store/log: resolver/fetch errors are designed to be token-free, others are not trusted. */
 function preprocessErrorMessage(error: unknown): string {
-  return error instanceof ImmoweltResolutionError ? error.message : "email preprocessing failed";
+  return error instanceof ImmoweltResolutionError || error instanceof HildebrandFetchError
+    ? error.message
+    : "email preprocessing failed";
 }
 
 /**

@@ -32,11 +32,12 @@ describe("sourceForHostname", () => {
     ["LWB.DE", "lwb"],
     ["suchauftrag.ohne-makler.net", "ohne-makler"],
     ["www.ohne-makler.net", "ohne-makler"],
+    ["hildebrand-partner.com", "hildebrand-partner"],
   ] as const)("%s → %s", (hostname, expected) => {
     expect(sourceForHostname(hostname)).toBe(expected);
   });
 
-  it.each(["notimmowelt.de", "immowelt.de.example.com", "example.com", "lwb.com", "ohne-makler.net.example.com", "ohnemakler.net"])(
+  it.each(["notimmowelt.de", "immowelt.de.example.com", "example.com", "lwb.com", "ohne-makler.net.example.com", "ohnemakler.net", "hildebrand-partner.de", "hildebrand-partner.com.example.com", "nothildebrand-partner.com"])(
     "does not match %s",
     (hostname) => {
       expect(sourceForHostname(hostname)).toBeNull();
@@ -115,5 +116,30 @@ describe("detectSource", () => {
 
   it("returns other for an empty email", () => {
     expect(detectSource(email({})).source).toBe("other");
+  });
+});
+
+describe("detectSource: Hildebrand & Partner", () => {
+  const base = { providerMessageId: "x", receivedAt: new Date(0), to: [], subject: null, html: null };
+
+  it("recognizes the real sender, with or without display name and in any case", () => {
+    for (const from of [
+      "wp-immomakler@hildebrand-partner.com",
+      "Hildebrand und Partner <wp-immomakler@hildebrand-partner.com>",
+      "WP-ImmoMakler@Hildebrand-Partner.com",
+    ]) {
+      expect(detectSource({ ...base, from, text: null })).toEqual({ source: "hildebrand-partner", matchedBy: "sender" });
+    }
+  });
+
+  it("does not need the subject", () => {
+    const email = { ...base, from: "wp-immomakler@hildebrand-partner.com", subject: "Irgendetwas", text: null };
+    expect(detectSource(email).source).toBe("hildebrand-partner");
+  });
+
+  it("does not match look-alike senders", () => {
+    for (const from of ["wp-immomakler@hildebrand-partner.com.example.com", "wp-immomakler@hildebrand-partner.de"]) {
+      expect(detectSource({ ...base, from, text: null }).source).toBe("other");
+    }
   });
 });

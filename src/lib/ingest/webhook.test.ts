@@ -1,7 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import type { IncomingEmail } from "@/lib/domain/email";
 import type { ResendEnv } from "@/lib/ingest/env";
-import { IngestionError, type IngestionResult } from "@/lib/ingest/pipeline";
+import { IngestionError, processIncomingEmail, type IngestionResult } from "@/lib/ingest/pipeline";
+import { createPreprocessor } from "@/lib/ingest/preprocess";
+import {
+  allListingRoutes,
+  fakeTracker,
+  reviewedImmoweltEmail,
+  syntheticRawImmoweltText,
+} from "@/lib/ingest/testing/immowelt";
+import { memoryStore } from "@/lib/ingest/testing/memoryStore";
 import {
   receivedEmail,
   receivedEvent,
@@ -10,6 +18,7 @@ import {
   testResend,
 } from "@/lib/ingest/testing/resend";
 import { handleInboundWebhook, type InboundWebhookDeps } from "@/lib/ingest/webhook";
+import { parseEmail } from "@/lib/parsers";
 
 const CONFIG: ResendEnv = { apiKey: "re_test", webhookSecret: TEST_WEBHOOK_SECRET };
 const silent = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
@@ -185,5 +194,102 @@ describe("handleInboundWebhook", () => {
     const logged = JSON.stringify([log.info.mock.calls, log.warn.mock.calls, log.error.mock.calls]);
     expect(logged).not.toContain("Neue Angebote");
     expect(logged).not.toContain("ich@example.org");
+  });
+});
+
+/**
+ * End to end through the real pipeline (in-memory store, fake redirects):
+ * the three failure classes must stay distinct.
+ */
+describe("handleInboundWebhook + pipeline: Immowelt link resolution failures", () => {
+  function immoweltDeps(routes: Parameters<typeof fakeTracker>[0], db = memoryStore()) {
+    const fake = fakeTracker(routes);
+    const deps: InboundWebhookDeps = {
+      config: () => CONFIG,
+      resend: () => testResend(async (id) => ({ data: receivedEmail(id), error: null, headers: null })),
+      // The webhook's fetched email, with the synthetic raw Immowelt content.
+      process: (email) =>
+        processIncomingEmail(
+          { ...email, from: raw.from, subject: raw.subject, text: raw.text, html: null },
+          db.store,
+          parseEmail,
+          createPreprocessor(fake),
+        ),
+      log: silent,
+    };
+    return { deps, db, fake };
+  }
+  const raw = { ...reviewedImmoweltEmail(), text: syntheticRawImmoweltText() };
+
+  it("a transient redirect failure (e.g. 403) → 500 (Resend retries), email kept as failed, no apartments", async () => {
+    const { deps, db } = immoweltDeps({ ...allListingRoutes(), "SYNTH-LISTING-2": { status: 403 } });
+
+    const response = await handleInboundWebhook(signedPost(receivedEvent("email_1")), deps);
+
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(body).not.toMatch(/SYNTH|qs=|click\.by/);
+    expect(db.apartments).toEqual([]);
+    expect(db.email()).toMatchObject({
+      providerMessageId: "email_1",
+      text: raw.text, // raw content stored unchanged
+      parseStatus: "failed",
+      parserVersion: null,
+      parseError: "Immowelt listing redirect could not be resolved (unexpected status 403)",
+    });
+    expect(JSON.stringify(db.updates)).not.toMatch(/SYNTH|qs=/);
+  });
+
+  it("the redelivery reprocesses the failed email (200, parsed), a further one is a duplicate", async () => {
+    const db = memoryStore();
+    const failing = immoweltDeps({ ...allListingRoutes(), "SYNTH-LISTING-2": "network-error" }, db);
+    expect((await handleInboundWebhook(signedPost(receivedEvent("email_1")), failing.deps)).status).toBe(500);
+
+    const working = immoweltDeps(allListingRoutes(), db);
+    const retry = await handleInboundWebhook(signedPost(receivedEvent("email_1")), working.deps);
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toMatchObject({ outcome: "processed", parseStatus: "parsed", apartments: 6 });
+    expect(db.apartments).toHaveLength(6);
+
+    const again = immoweltDeps(allListingRoutes(), db);
+    const duplicate = await handleInboundWebhook(signedPost(receivedEvent("email_1")), again.deps);
+    expect(duplicate.status).toBe(200);
+    expect(await duplicate.json()).toMatchObject({ outcome: "duplicate", parseStatus: "parsed" });
+    expect(again.fake.requested).toEqual([]); // no further network requests
+    expect(db.apartments).toHaveLength(6);
+  });
+
+  it("an unrecognized (non-listing) email stays 200 without any request", async () => {
+    const db = memoryStore();
+    const fake = fakeTracker({});
+    const deps: InboundWebhookDeps = {
+      config: () => CONFIG,
+      resend: () => testResend(async (id) => ({ data: receivedEmail(id), error: null, headers: null })),
+      process: (email) => processIncomingEmail(email, db.store, parseEmail, createPreprocessor(fake)),
+      log: silent,
+    };
+    const response = await handleInboundWebhook(signedPost(receivedEvent("email_1")), deps);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ parseStatus: "unrecognized", apartments: 0 });
+    expect(fake.requested).toEqual([]);
+  });
+
+  it("a deterministic parser failure stays 200 (retrying would not help)", async () => {
+    const db = memoryStore();
+    const deps: InboundWebhookDeps = {
+      config: () => CONFIG,
+      resend: () => testResend(async (id) => ({ data: receivedEmail(id), error: null, headers: null })),
+      process: (email) =>
+        processIncomingEmail(
+          email,
+          db.store,
+          () => ({ status: "failed", parserVersion: "x@1", apartments: [], failures: [{ parser: "x", stage: "parse", message: "bad" }] }),
+          async (e) => e,
+        ),
+      log: silent,
+    };
+    const response = await handleInboundWebhook(signedPost(receivedEvent("email_1")), deps);
+    expect(response.status).toBe(200);
+    expect(db.email()).toMatchObject({ parseStatus: "failed", parserVersion: "x@1" });
   });
 });

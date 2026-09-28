@@ -1,13 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { Apartment, NewApartment } from "@/lib/domain/apartment";
-import type { EmailParseResult, IncomingEmail, StoredEmail } from "@/lib/domain/email";
-import { makeApartment } from "@/lib/dashboard/testing/apartments";
+import type { IncomingEmail, StoredEmail } from "@/lib/domain/email";
 import {
   IngestionError,
   processIncomingEmail,
   reprocessStoredEmail,
-  type IngestionStore,
-  type ReprocessingStore,
 } from "@/lib/ingest/pipeline";
 import { createPreprocessor, defaultPreprocess } from "@/lib/ingest/preprocess";
 import {
@@ -18,46 +14,12 @@ import {
   reviewedImmoweltEmail,
   syntheticRawImmoweltText,
 } from "@/lib/ingest/testing/immowelt";
+import { memoryStore } from "@/lib/ingest/testing/memoryStore";
 import { parseEmail } from "@/lib/parsers";
 
 /** Raw-looking Immowelt email: real structure, synthetic tracking tokens. */
 function rawImmoweltEmail(): IncomingEmail {
   return { ...reviewedImmoweltEmail(), providerMessageId: "email_raw", text: syntheticRawImmoweltText() };
-}
-
-/** In-memory store for both entry points; upsert keeps workflow fields. */
-function memoryStore(existing?: StoredEmail) {
-  let email: StoredEmail | null = existing ? structuredClone(existing) : null;
-  const apartments: Apartment[] = [];
-  const updates: EmailParseResult[] = [];
-  const upsert = async (input: NewApartment) => {
-    const found = apartments.find((a) => a.source === input.source && a.sourceId === input.sourceId);
-    if (found) return Object.assign(found, input);
-    const created = makeApartment({ ...input, id: `apt-${apartments.length + 1}` });
-    apartments.push(created);
-    return created;
-  };
-  const store: IngestionStore & ReprocessingStore = {
-    async createInboundEmail(input) {
-      if (email) return { email, created: false };
-      email = { ...input, id: "row-1", parserVersion: null, parseStatus: "pending", parseError: null };
-      return { email, created: true };
-    },
-    async findEmailByProviderMessageId(id) {
-      return email?.providerMessageId === id ? structuredClone(email) : null;
-    },
-    async updateEmailParseResult(_id, result) {
-      updates.push(result);
-      email = { ...email!, ...result, detectedSource: result.detectedSource ?? email!.detectedSource };
-      return email;
-    },
-    insertApartment: upsert,
-    upsertApartment: upsert,
-    async countApartmentsWithoutSourceId() {
-      return 0;
-    },
-  };
-  return { store, apartments, updates, email: () => email };
 }
 
 describe("preprocessing", () => {
@@ -86,7 +48,7 @@ describe("preprocessing", () => {
 });
 
 describe("ingestion with Immowelt link resolution (integration)", () => {
-  it("raw-style email → mocked redirects → immowelt@1.0.1 → six apartments; raw email stored unchanged", async () => {
+  it("raw-style email → mocked redirects → immowelt@1.0.2 → six apartments; raw email stored unchanged", async () => {
     const email = rawImmoweltEmail();
     const fake = fakeTracker(allListingRoutes());
     const db = memoryStore();
@@ -95,7 +57,7 @@ describe("ingestion with Immowelt link resolution (integration)", () => {
 
     expect(result).toMatchObject({ outcome: "processed", parseStatus: "parsed", apartments: 6 });
     expect(fake.requested).toHaveLength(6);
-    expect(db.updates.at(-1)).toMatchObject({ parseStatus: "parsed", parserVersion: "immowelt@1.0.1" });
+    expect(db.updates.at(-1)).toMatchObject({ parseStatus: "parsed", parserVersion: "immowelt@1.0.2" });
     expect(db.email()?.text).toBe(email.text); // the stored raw text keeps its trackers
     expect(db.apartments.map((a) => a.sourceUrl)).toEqual(EXPOSE_IDS.map(expose));
     expect(db.apartments.map((a) => [a.title, a.rentCold, a.rooms, a.sqm, a.district])).toEqual([
@@ -152,7 +114,7 @@ describe("ingestion with Immowelt link resolution (integration)", () => {
     const first = await reprocessStoredEmail("email_raw", db.store, parseEmail, createPreprocessor(fakeTracker(allListingRoutes())));
     const second = await reprocessStoredEmail("email_raw", db.store, parseEmail, createPreprocessor(fakeTracker(allListingRoutes())));
 
-    expect(first).toMatchObject({ parseStatus: "parsed", parserVersion: "immowelt@1.0.1", apartments: 6 });
+    expect(first).toMatchObject({ parseStatus: "parsed", parserVersion: "immowelt@1.0.2", apartments: 6 });
     expect(second.apartments).toBe(6);
     expect(db.apartments).toHaveLength(6); // upserts, no duplicates
     expect(db.email()?.text).toBe(raw.text);

@@ -14,6 +14,8 @@ export const SOURCE_DOMAINS = {
   lwb: ["lwb.de"],
   // Alerts come from suchauftrag.ohne-makler.net; listings are on www.ohne-makler.net.
   "ohne-makler": ["ohne-makler.net"],
+  // Search-agent mail comes from wp-immomakler@hildebrand-partner.com; listings are on the same host.
+  "hildebrand-partner": ["hildebrand-partner.com"],
 } as const satisfies Record<Exclude<Source, "other">, readonly string[]>;
 
 type PlatformSource = keyof typeof SOURCE_DOMAINS;

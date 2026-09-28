@@ -19,8 +19,11 @@ import {
  *   "unrecognized", and "failed" caused by a parser: retrying would not help;
  *   the raw email is kept for reprocessing).
  * - 502: the Receiving API failed before anything was stored → retry.
- * - 500: missing configuration or a storage failure → retry. A partially
- *   processed email is resumed safely on the next attempt (see pipeline.ts).
+ * - 500: missing configuration, a storage failure, or a transient
+ *   preprocessing failure (e.g. an Immowelt listing redirect answered 403 or
+ *   timed out; the email is stored as "failed" without apartments) → retry.
+ *   A partially processed or failed email is resumed safely on the next
+ *   attempt (see pipeline.ts).
  *
  * Responses and logs never contain email content, secrets or DB details.
  */

@@ -5,6 +5,7 @@ export const SOURCES = [
   "wg-gesucht",
   "lwb",
   "ohne-makler",
+  "hildebrand-partner",
   "other",
 ] as const;
 export type Source = (typeof SOURCES)[number];

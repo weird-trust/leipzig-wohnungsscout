@@ -13,6 +13,17 @@ export interface IncomingEmail {
   subject: string | null;
   text: string | null;
   html: string | null;
+  /**
+   * A page fetched during preprocessing because the email only links to its
+   * listings (Hildebrand & Partner search results). Parsing input only:
+   * never stored, never logged, and its URL is not kept.
+   */
+  fetchedPage?: FetchedPage;
+}
+
+export interface FetchedPage {
+  source: Source;
+  html: string;
 }
 
 /** "pending" until the parse result has been stored. */
