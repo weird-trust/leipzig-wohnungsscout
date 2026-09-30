@@ -19,8 +19,8 @@ export function activeFilters(query: DashboardQuery): ActiveFilter[] {
     dashboardHref(withQuery(query, { filters: changes }));
 
   const result: ActiveFilter[] = [];
-  if (filters.minRooms !== null) {
-    result.push({ label: `ab ${number.format(filters.minRooms)} Zi.`, removeHref: without({ minRooms: null }) });
+  if (filters.minRooms !== null && filters.minRooms > 0) {
+    result.push({ label: `ab ${number.format(filters.minRooms)} Zi.`, removeHref: without({ minRooms: 0 }) });
   }
   if (filters.maxRooms !== null) {
     result.push({ label: `bis ${number.format(filters.maxRooms)} Zi.`, removeHref: without({ maxRooms: null }) });

@@ -2,6 +2,7 @@ import {
   APARTMENT_STATUSES,
   type ApartmentStatus,
 } from "@/lib/domain/apartment";
+import { SCORING } from "@/lib/scoring";
 
 /**
  * Dashboard state as it lives in the URL. Parsing never throws: anything
@@ -41,14 +42,24 @@ export interface DashboardQuery {
   filters: DashboardFilters;
 }
 
-export const DEFAULT_FILTERS: DashboardFilters = {
-  minRooms: null,
+/** Filters that hide nothing. `minRooms: 0` switches off the default room minimum. */
+export const NO_FILTERS: DashboardFilters = {
+  minRooms: 0,
   maxRooms: null,
   minSqm: null,
   maxWarmRent: null,
   require: [],
   district: null,
   status: null,
+};
+
+/**
+ * The view without URL parameters: apartments known to have fewer rooms than
+ * the target range are hidden. Unknown room counts stay visible.
+ */
+export const DEFAULT_FILTERS: DashboardFilters = {
+  ...NO_FILTERS,
+  minRooms: SCORING.rooms.min,
 };
 
 export const DEFAULT_QUERY: DashboardQuery = {
@@ -91,7 +102,7 @@ export function parseDashboardQuery(params: SearchParams): DashboardQuery {
   const get = (key: string) => first(params[key]);
 
   const numbers = Object.fromEntries(
-    NUMBER_PARAMS.map((key) => [key, parseNonNegativeNumber(get(key))]),
+    NUMBER_PARAMS.map((key) => [key, parseNonNegativeNumber(get(key)) ?? DEFAULT_FILTERS[key]]),
   ) as Record<(typeof NUMBER_PARAMS)[number], number | null>;
 
   const require = (Object.keys(FEATURE_FILTERS) as FeatureParam[])
@@ -125,7 +136,7 @@ export function dashboardHref(query: DashboardQuery): string {
   const { filters } = query;
   for (const key of NUMBER_PARAMS) {
     const value = filters[key];
-    if (value !== null) params.set(key, String(value));
+    if (value !== null && value !== DEFAULT_FILTERS[key]) params.set(key, String(value));
   }
   for (const [param, feature] of Object.entries(FEATURE_FILTERS)) {
     if (filters.require.includes(feature)) params.set(param, "1");
@@ -160,9 +171,10 @@ export function withQuery(
   };
 }
 
+/** Whether any filter can hide an apartment, including the default room minimum. */
 export function hasActiveFilters(filters: DashboardFilters): boolean {
   return (
-    NUMBER_PARAMS.some((key) => filters[key] !== null) ||
+    NUMBER_PARAMS.some((key) => filters[key] !== NO_FILTERS[key]) ||
     filters.require.length > 0 ||
     filters.district !== null ||
     filters.status !== null

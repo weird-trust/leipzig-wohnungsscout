@@ -64,6 +64,11 @@ describe("parseDashboardQuery", () => {
     expect(parseDashboardQuery({ tab: ["new", "applied"] }).tab).toBe("new");
   });
 
+  it("hides apartments with fewer than 3 rooms by default, unless minRooms=0", () => {
+    expect(parseDashboardQuery({}).filters.minRooms).toBe(3);
+    expect(parseDashboardQuery({ minRooms: "0" }).filters.minRooms).toBe(0);
+  });
+
   it("accepts a German decimal comma", () => {
     expect(parseDashboardQuery({ minRooms: "3,5" }).filters.minRooms).toBe(3.5);
   });
@@ -94,6 +99,7 @@ describe("dashboardHref", () => {
     const urls = [
       "/?tab=favorites",
       "/?sort=newest",
+      "/?minRooms=0",
       "/?minSqm=90&maxWarmRent=1500",
       "/?topFloor=1&balcony=1",
       "/?tab=applied&sort=area&minRooms=3.5&maxRooms=4&kitchen=1&district=Gohlis-S%C3%BCd&status=seen",
@@ -121,8 +127,12 @@ describe("searchParamsHref", () => {
 
 describe("hasActiveFilters", () => {
   it("ignores tab and sort", () => {
-    expect(hasActiveFilters(parseDashboardQuery({ tab: "new", sort: "rent" }).filters)).toBe(false);
+    expect(hasActiveFilters(parseDashboardQuery({ tab: "new", sort: "rent", minRooms: "0" }).filters)).toBe(false);
     expect(hasActiveFilters(parseDashboardQuery({ balcony: "1" }).filters)).toBe(true);
     expect(hasActiveFilters(parseDashboardQuery({ status: "gone" }).filters)).toBe(true);
+  });
+
+  it("counts the default room minimum, since it hides apartments", () => {
+    expect(hasActiveFilters(parseDashboardQuery({}).filters)).toBe(true);
   });
 });

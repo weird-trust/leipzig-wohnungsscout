@@ -46,6 +46,7 @@ describe("activeFilters", () => {
   it("labels each active filter with a link that removes only that filter", () => {
     const query = parseDashboardQuery({
       tab: "new",
+      minRooms: "0",
       minSqm: "90",
       maxWarmRent: "1500",
       balcony: "1",
@@ -53,15 +54,21 @@ describe("activeFilters", () => {
       district: "Plagwitz",
     });
     expect(activeFilters(query)).toEqual([
-      { label: "ab 90 m²", removeHref: "/?tab=new&maxWarmRent=1500&topFloor=1&balcony=1&district=Plagwitz" },
-      { label: expect.stringMatching(/^bis 1\.500\s€ warm$/), removeHref: "/?tab=new&minSqm=90&topFloor=1&balcony=1&district=Plagwitz" },
-      { label: "✓ Dachgeschoss", removeHref: "/?tab=new&minSqm=90&maxWarmRent=1500&balcony=1&district=Plagwitz" },
-      { label: "✓ Balkon / Terrasse", removeHref: "/?tab=new&minSqm=90&maxWarmRent=1500&topFloor=1&district=Plagwitz" },
-      { label: "Stadtteil: Plagwitz", removeHref: "/?tab=new&minSqm=90&maxWarmRent=1500&topFloor=1&balcony=1" },
+      { label: "ab 90 m²", removeHref: "/?tab=new&minRooms=0&maxWarmRent=1500&topFloor=1&balcony=1&district=Plagwitz" },
+      { label: expect.stringMatching(/^bis 1\.500\s€ warm$/), removeHref: "/?tab=new&minRooms=0&minSqm=90&topFloor=1&balcony=1&district=Plagwitz" },
+      { label: "✓ Dachgeschoss", removeHref: "/?tab=new&minRooms=0&minSqm=90&maxWarmRent=1500&balcony=1&district=Plagwitz" },
+      { label: "✓ Balkon / Terrasse", removeHref: "/?tab=new&minRooms=0&minSqm=90&maxWarmRent=1500&topFloor=1&district=Plagwitz" },
+      { label: "Stadtteil: Plagwitz", removeHref: "/?tab=new&minRooms=0&minSqm=90&maxWarmRent=1500&topFloor=1&balcony=1" },
     ]);
   });
 
-  it("is empty without filters", () => {
-    expect(activeFilters(parseDashboardQuery({ tab: "favorites", sort: "rent" }))).toEqual([]);
+  it("shows the default room minimum as a removable chip", () => {
+    expect(activeFilters(parseDashboardQuery({ tab: "favorites", sort: "rent" }))).toEqual([
+      { label: "ab 3 Zi.", removeHref: "/?tab=favorites&sort=rent&minRooms=0" },
+    ]);
+  });
+
+  it("is empty when the room minimum is switched off", () => {
+    expect(activeFilters(parseDashboardQuery({ minRooms: "0" }))).toEqual([]);
   });
 });

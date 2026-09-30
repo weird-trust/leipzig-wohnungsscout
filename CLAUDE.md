@@ -179,6 +179,7 @@ URL conventions (all optional, parsed in `query.ts`; invalid values fall back to
 * `tab`: `all | new | favorites | applied | viewing`. `favorites` means `isFavorite`, independent of status.
 * `sort`: `score` (default) `| newest | rent | area`. Unknown numbers sort last; ties fall back to score, then newest, then id.
 * `minRooms`, `maxRooms`, `minSqm`, `maxWarmRent`: numbers. They hide only apartments *known* to violate them; unknown values stay visible.
+* `minRooms` defaults to `SCORING.rooms.min` (3), shown as a removable chip; `minRooms=0` (`NO_FILTERS`) switches it off. An empty form field falls back to the default.
 * `topFloor`, `balcony`, `bathtub`, `kitchen`: set to `1` to require the feature. Only `true` matches; unknown does not.
 * `district`: exact match. `status`: an `ApartmentStatus`.
 

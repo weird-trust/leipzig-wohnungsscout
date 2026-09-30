@@ -8,7 +8,7 @@ import { activeFilters } from "@/lib/dashboard/activeFilters";
 import { TAB_LABELS } from "@/lib/dashboard/display";
 import {
   dashboardHref,
-  DEFAULT_FILTERS,
+  NO_FILTERS,
   hasActiveFilters,
   parseDashboardQuery,
   searchParamsHref,
@@ -43,7 +43,7 @@ function NoResults({ query, total }: { query: DashboardQuery; total: number }) {
     );
   }
 
-  const resetHref = dashboardHref(withQuery(query, { filters: DEFAULT_FILTERS }));
+  const resetHref = dashboardHref(withQuery(query, { filters: NO_FILTERS }));
   if (hasActiveFilters(query.filters)) {
     return (
       <EmptyState title="Keine Wohnung passt zu diesen Filtern">
