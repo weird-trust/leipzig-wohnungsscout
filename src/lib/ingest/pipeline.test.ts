@@ -33,6 +33,7 @@ function listing(overrides: Partial<ParsedApartment> = {}): ParsedApartment {
     title: "3-Zimmer-Wohnung mit Balkon",
     address: null,
     district: "Plagwitz",
+    postcode: null,
     rooms: 3,
     sqm: 95,
     rentCold: null,

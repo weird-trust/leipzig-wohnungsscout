@@ -21,6 +21,7 @@ const input: NewApartment & { sourceId: string } = {
   title: "3-Zimmer-Wohnung in Gohlis",
   address: null,
   district: "Gohlis",
+  postcode: "04155",
   rooms: 3,
   sqm: 98.5,
   rentCold: 1000,

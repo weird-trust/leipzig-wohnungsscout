@@ -37,7 +37,7 @@ describe("ImmoScout alert-01 (real fixture)", () => {
   it("is selected by parseEmail()", () => {
     const outcome = parseEmail(email);
     expect(outcome.status).toBe("parsed");
-    expect(outcome.parserVersion).toBe("immoscout@1.0.1");
+    expect(outcome.parserVersion).toBe("immoscout@1.1.0");
     expect(outcome.failures).toEqual([]);
     expect(outcome.apartments).toEqual(apartments);
   });
@@ -54,6 +54,7 @@ describe("ImmoScout alert-01 (real fixture)", () => {
       sourceId: "171164085",
       address: "Beispielstraße 5A, Südvorstadt, Leipzig",
       district: "Südvorstadt",
+      postcode: null,
       rentCold: 1099,
       sqm: 77,
       rooms: 3,
@@ -95,6 +96,7 @@ describe("ImmoScout alert-01 (real fixture)", () => {
       title: "Inkl. Balkon & neuer EBK!",
       address: "Beispielstraße 5A, Südvorstadt, Leipzig",
       district: "Südvorstadt",
+      postcode: null,
       rooms: 3,
       sqm: 77,
       rentCold: 1099,
@@ -124,7 +126,7 @@ describe("ImmoScout alert-02-multiple (real fixture, three listings)", () => {
   it("is selected by parseEmail() and yields exactly three apartments", () => {
     const outcome = parseEmail(multiple);
     expect(outcome.status).toBe("parsed");
-    expect(outcome.parserVersion).toBe("immoscout@1.0.1");
+    expect(outcome.parserVersion).toBe("immoscout@1.1.0");
     expect(outcome.apartments).toHaveLength(3);
   });
 
@@ -137,6 +139,7 @@ describe("ImmoScout alert-02-multiple (real fixture, three listings)", () => {
         title: "Inkl. Aufzug und neuer Einbauküche!",
         address: "Beispielstraße 46, Südvorstadt, Leipzig",
         district: "Südvorstadt",
+        postcode: null,
         rooms: 3,
         sqm: 85,
         rentCold: 1199,
@@ -152,6 +155,7 @@ describe("ImmoScout alert-02-multiple (real fixture, three listings)", () => {
         title: "Inkl. neuer Einbauküche & Balkon! *In Renovierung*",
         address: "Beispielstraße 77, Südvorstadt, Leipzig",
         district: "Südvorstadt",
+        postcode: null,
         rooms: 3,
         sqm: 76,
         rentCold: 1099,
@@ -167,6 +171,7 @@ describe("ImmoScout alert-02-multiple (real fixture, three listings)", () => {
         title: "4-RW inkl. großem Balkon und neuer Einbauküche! *In Renovierung!*",
         address: "Musterstraße 27, Plagwitz, Leipzig",
         district: "Plagwitz",
+        postcode: null,
         rooms: 4,
         sqm: 94,
         rentCold: 1349,
@@ -299,8 +304,15 @@ describe("districtFromAddress", () => {
     expect(districtFromAddress("Beispielstraße 5A, Südvorstadt, Leipzig")).toBe("Südvorstadt");
   });
 
+  it("also reads \"<district>, Leipzig\" when the street is withheld (seen in real alerts)", () => {
+    expect(districtFromAddress("Schleußig, Leipzig")).toBe("Schleußig");
+    expect(districtFromAddress("Altlindenau, Leipzig")).toBe("Altlindenau");
+  });
+
   it.each([
     ["no district part", "Beispielstraße 5A, Leipzig"],
+    ["only the city", "Leipzig"],
+    ["empty district", ", Leipzig"],
     ["another city", "Beispielstraße 5A, Mitte, Berlin"],
     ["postcode instead of district", "Beispielstraße 5A, 04275, Leipzig"],
     ["no address", null],

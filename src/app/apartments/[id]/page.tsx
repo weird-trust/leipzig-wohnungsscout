@@ -12,6 +12,7 @@ import {
   formatFloor,
   formatRooms,
   formatSqm,
+  locationLabel,
   paragraphs,
   rentPerSqm,
   SOURCE_LABELS,
@@ -91,7 +92,7 @@ export default async function ApartmentPage({ params }: PageProps<"/apartments/[
       <header className="mt-12 grid gap-x-16 gap-y-8 sm:mt-16 lg:mt-20 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
           <p className={HEADING}>
-            {apartment.district ?? <span className="text-faint">Stadtteil unbekannt</span>}
+            {locationLabel(apartment) ?? <span className="text-faint">Lage unbekannt</span>}
           </p>
           <h1 className="mt-3 max-w-4xl text-xl font-medium tracking-[-0.03em] text-balance">
             {apartment.title}

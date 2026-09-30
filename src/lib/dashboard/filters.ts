@@ -1,5 +1,6 @@
 import type { Apartment } from "@/lib/domain/apartment";
 import type { DashboardFilters, Tab } from "@/lib/dashboard/query";
+import { matchLocation } from "@/lib/location";
 
 export function matchesTab(apartment: Apartment, tab: Tab): boolean {
   switch (tab) {
@@ -18,7 +19,8 @@ export function matchesTab(apartment: Apartment, tab: Tab): boolean {
 /**
  * Numeric filters hide only listings known to violate them: an unknown
  * value (e.g. no warm rent in the alert) stays visible. Required features
- * must be explicitly true; unknown does not count. A district filter needs
+ * must be explicitly true; unknown does not count. The preferred-area filter
+ * hides only listings known to be outside the area. A district filter needs
  * a matching district.
  */
 export function matchesFilters(
@@ -33,6 +35,8 @@ export function matchesFilters(
   if (filters.maxWarmRent !== null && rentWarm !== null && rentWarm > filters.maxWarmRent) {
     return false;
   }
+
+  if (filters.preferredArea && matchLocation(apartment) === "outside") return false;
 
   if (filters.require.some((feature) => apartment[feature] !== true)) return false;
 

@@ -26,7 +26,7 @@ describe("buildDashboardView", () => {
   it("attaches the computed score to each item", () => {
     const view = buildDashboardView(apartments, parseDashboardQuery({}));
     const first = view.items.find((i) => i.apartment.id === idOf(1));
-    expect(first?.score.score).toBe(45); // base 25 + 3 rooms 10 + balcony 10
+    expect(first?.score.score).toBe(65); // base 25 + Plagwitz 20 + 3 rooms 10 + balcony 10
   });
 
   it("lists each known district once, sorted", () => {
@@ -47,6 +47,7 @@ describe("activeFilters", () => {
     const query = parseDashboardQuery({
       tab: "new",
       minRooms: "0",
+      preferredArea: "0",
       minSqm: "90",
       maxWarmRent: "1500",
       balcony: "1",
@@ -54,21 +55,22 @@ describe("activeFilters", () => {
       district: "Plagwitz",
     });
     expect(activeFilters(query)).toEqual([
-      { label: "ab 90 m²", removeHref: "/?tab=new&minRooms=0&maxWarmRent=1500&topFloor=1&balcony=1&district=Plagwitz" },
-      { label: expect.stringMatching(/^bis 1\.500\s€ warm$/), removeHref: "/?tab=new&minRooms=0&minSqm=90&topFloor=1&balcony=1&district=Plagwitz" },
-      { label: "✓ Dachgeschoss", removeHref: "/?tab=new&minRooms=0&minSqm=90&maxWarmRent=1500&balcony=1&district=Plagwitz" },
-      { label: "✓ Balkon / Terrasse", removeHref: "/?tab=new&minRooms=0&minSqm=90&maxWarmRent=1500&topFloor=1&district=Plagwitz" },
-      { label: "Stadtteil: Plagwitz", removeHref: "/?tab=new&minRooms=0&minSqm=90&maxWarmRent=1500&topFloor=1&balcony=1" },
+      { label: "ab 90 m²", removeHref: "/?tab=new&minRooms=0&maxWarmRent=1500&preferredArea=0&topFloor=1&balcony=1&district=Plagwitz" },
+      { label: expect.stringMatching(/^bis 1\.500\s€ warm$/), removeHref: "/?tab=new&minRooms=0&minSqm=90&preferredArea=0&topFloor=1&balcony=1&district=Plagwitz" },
+      { label: "✓ Dachgeschoss", removeHref: "/?tab=new&minRooms=0&minSqm=90&maxWarmRent=1500&preferredArea=0&balcony=1&district=Plagwitz" },
+      { label: "✓ Balkon / Terrasse", removeHref: "/?tab=new&minRooms=0&minSqm=90&maxWarmRent=1500&preferredArea=0&topFloor=1&district=Plagwitz" },
+      { label: "Stadtteil: Plagwitz", removeHref: "/?tab=new&minRooms=0&minSqm=90&maxWarmRent=1500&preferredArea=0&topFloor=1&balcony=1" },
     ]);
   });
 
-  it("shows the default room minimum as a removable chip", () => {
+  it("shows the default room minimum and preferred area as removable chips", () => {
     expect(activeFilters(parseDashboardQuery({ tab: "favorites", sort: "rent" }))).toEqual([
       { label: "ab 3 Zi.", removeHref: "/?tab=favorites&sort=rent&minRooms=0" },
+      { label: "Wunschgebiet", removeHref: "/?tab=favorites&sort=rent&preferredArea=0" },
     ]);
   });
 
-  it("is empty when the room minimum is switched off", () => {
-    expect(activeFilters(parseDashboardQuery({ minRooms: "0" }))).toEqual([]);
+  it("is empty when the default filters are switched off", () => {
+    expect(activeFilters(parseDashboardQuery({ minRooms: "0", preferredArea: "0" }))).toEqual([]);
   });
 });

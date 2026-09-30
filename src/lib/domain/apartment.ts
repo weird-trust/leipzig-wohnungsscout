@@ -49,6 +49,8 @@ export interface ListingData {
   title: string;
   address: string | null;
   district: string | null;
+  /** 5-digit German postcode, e.g. "04229". */
+  postcode: string | null;
 
   rooms: number | null;
   sqm: number | null;

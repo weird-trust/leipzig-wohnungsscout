@@ -11,7 +11,8 @@ import type { ApartmentParser, ParsedApartment } from "@/lib/parsers/types";
  *     👉 Exposé anzeigen  (<url>) |
  *
  * <location> is either "04299 Leipzig" (postcode + city) or
- * "<street> <no>, 04177 Leipzig"; only the latter is an address.
+ * "<street> <no>, 04177 Leipzig"; only the latter is an address. Both give
+ * the postcode.
  * "Miete" is not labelled cold or warm, so it maps to neither rent field.
  */
 
@@ -55,6 +56,11 @@ export function addressFromLocation(location: string | null): string | null {
   return match ? location : null;
 }
 
+/** The postcode of "04299 Leipzig" or "Musterstraße 9, 04177 Leipzig"; anything else → null. */
+export function postcodeFromLocation(location: string | null): string | null {
+  return location?.match(/(?:^|,\s*)(\d{5})\s+\p{L}[\p{L} .-]*$/u)?.[1] ?? null;
+}
+
 /** The listing id of a row, when the row is a listing row for exactly one listing. */
 function rowListing(line: string): { sourceUrl: string; sourceId: string } | null {
   const lead = line.match(ROW_START);
@@ -89,6 +95,7 @@ function parseRow(line: string, listing: { sourceUrl: string; sourceId: string }
     address: addressFromLocation(location),
     // Not derived from the postcode.
     district: null,
+    postcode: postcodeFromLocation(location),
     rooms: parseGermanDecimal(rest.match(/Zimmer:\s*(\S+)/)?.[1]),
     sqm: parseGermanDecimal(rest.match(/Wohnfläche:\s*(\S+)\s*m²/)?.[1]),
     // "Miete" has no cold/warm label in this alert.
@@ -102,7 +109,7 @@ function parseRow(line: string, listing: { sourceUrl: string; sourceId: string }
 
 export const ohneMaklerParser: ApartmentParser = {
   name: "ohne-makler",
-  version: "1.0.0",
+  version: "1.1.0",
 
   canParse(email: IncomingEmail): boolean {
     return (email.text ?? "").split(/\r?\n/).some((line) => rowListing(line.trim()) !== null);

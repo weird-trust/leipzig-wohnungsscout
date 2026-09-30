@@ -62,6 +62,7 @@ describe("Kleinanzeigen alert-01 (real fixture)", () => {
     expect(apartment).toMatchObject({
       address: null,
       district: null, // "in Connewitz" is deliberately not interpreted
+      postcode: null,
       sqm: null,
       floor: null,
     });
@@ -110,6 +111,7 @@ describe("Kleinanzeigen alert-01 (real fixture)", () => {
       rooms: 3,
       address: null,
       district: null,
+      postcode: null,
       sqm: null,
       rentCold: null,
       rentWarm: null,

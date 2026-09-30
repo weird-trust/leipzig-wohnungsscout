@@ -9,6 +9,7 @@ import {
   ohneMaklerParser,
   parseGermanDecimal,
   parseListingUrl,
+  postcodeFromLocation,
 } from "@/lib/parsers/ohneMakler";
 import { detectSource } from "@/lib/sourceDetection";
 
@@ -32,6 +33,7 @@ const EXPECTED = [
     rooms: 2,
     sqm: 74,
     address: null,
+    postcode: "04299",
     location: "04299 Leipzig",
   },
   {
@@ -40,6 +42,7 @@ const EXPECTED = [
     rooms: 3,
     sqm: 77,
     address: null,
+    postcode: "04129",
     location: "04129 Leipzig",
   },
   {
@@ -48,6 +51,7 @@ const EXPECTED = [
     rooms: 3,
     sqm: 87,
     address: "Musterstraße 9, 04177 Leipzig",
+    postcode: "04177",
     location: "Musterstraße 9, 04177 Leipzig",
   },
 ] as const;
@@ -58,10 +62,10 @@ describe("Ohne-Makler alert-01 (real fixture)", () => {
     expect(detectSource(email)).toEqual({ source: "ohne-makler", matchedBy: "sender" });
   });
 
-  it("is selected by parseEmail() as ohne-makler@1.0.0", () => {
+  it("is selected by parseEmail() as ohne-makler@1.1.0", () => {
     const outcome = parseEmail(email);
     expect(outcome.status).toBe("parsed");
-    expect(outcome.parserVersion).toBe("ohne-makler@1.0.0");
+    expect(outcome.parserVersion).toBe("ohne-makler@1.1.0");
     expect(outcome.failures).toEqual([]);
     expect(outcome.apartments).toEqual(apartments);
   });
@@ -86,6 +90,7 @@ describe("Ohne-Makler alert-01 (real fixture)", () => {
         sqm: expected.sqm,
         address: expected.address,
         district: null,
+        postcode: expected.postcode,
         rentCold: null,
         rentWarm: null,
         floor: null,
@@ -193,6 +198,26 @@ describe("addressFromLocation", () => {
     ["nothing", null],
   ])("returns null for %s", (_, location) => {
     expect(addressFromLocation(location)).toBeNull();
+  });
+});
+
+describe("postcodeFromLocation", () => {
+  it.each([
+    ["04129 Leipzig", "04129"],
+    ["Musterstraße 9, 04177 Leipzig", "04177"],
+  ])("%s → %s", (location, postcode) => {
+    expect(postcodeFromLocation(location)).toBe(postcode);
+  });
+
+  it.each([
+    ["four digits", "0412 Leipzig"],
+    ["six digits", "041290 Leipzig"],
+    ["postcode without city", "04129"],
+    ["digits inside the street", "Musterstraße 04129 Leipzig"],
+    ["district-like text", "Leipzig-Plagwitz"],
+    ["nothing", null],
+  ])("returns null for %s", (_, location) => {
+    expect(postcodeFromLocation(location)).toBeNull();
   });
 });
 

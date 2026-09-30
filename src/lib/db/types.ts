@@ -50,6 +50,7 @@ export type ApartmentRow = {
   title: string;
   address: string | null;
   district: string | null;
+  postcode: string | null;
   rooms: number | null;
   sqm: number | null;
   rent_cold: number | null;

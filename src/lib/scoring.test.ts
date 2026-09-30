@@ -3,6 +3,8 @@ import type { Apartment } from "@/lib/domain/apartment";
 import { SCORING, scoreApartment, type ScoringInput } from "@/lib/scoring";
 
 const unknown: ScoringInput = {
+  district: null,
+  postcode: null,
   rooms: null,
   sqm: null,
   rentWarm: null,
@@ -14,6 +16,8 @@ const unknown: ScoringInput = {
 };
 
 const ideal: ScoringInput = {
+  district: null,
+  postcode: null,
   rooms: 4,
   sqm: 100,
   rentWarm: null,
@@ -181,5 +185,24 @@ describe("boundaries", () => {
       const rentRules = rules({ ...unknown, rentWarm }).filter((r) => r.startsWith("warmRent"));
       expect(rentRules.length).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe("location", () => {
+  it.each([
+    [{ district: "Plagwitz" }, 20, "locationPreferred"],
+    [{ district: "Altlindenau", postcode: "04318" }, 20, "locationPreferred"], // district wins over postcode
+    [{ postcode: "04229" }, 10, "locationNearby"],
+    [{ district: "Gohlis-Süd" }, -10, "locationOutside"],
+    [{ district: "Gohlis-Süd", postcode: "04229" }, -10, "locationOutside"],
+    [{ postcode: "04318" }, -10, "locationOutside"],
+  ] as const)("%j → %s (%s)", (location, expected, rule) => {
+    expect(delta(location)).toBe(expected);
+    expect(rules({ ...unknown, ...location })).toContain(rule);
+  });
+
+  it("gives an unknown location nothing", () => {
+    expect(rules({ ...unknown, district: null, postcode: null })).toEqual(["base"]);
+    expect(rules({ ...unknown, district: "  " })).toEqual(["base"]);
   });
 });

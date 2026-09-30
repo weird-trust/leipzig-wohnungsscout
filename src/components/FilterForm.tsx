@@ -99,6 +99,21 @@ export function FilterForm({
         </fieldset>
 
         <div className="min-w-0 space-y-1.5">
+          <label htmlFor="preferredArea" className={LEGEND}>
+            Lage
+          </label>
+          <select
+            id="preferredArea"
+            name="preferredArea"
+            defaultValue={filters.preferredArea ? "1" : "0"}
+            className={INPUT}
+          >
+            <option value="1">Wunschgebiet</option>
+            <option value="0">Alle Lagen</option>
+          </select>
+        </div>
+
+        <div className="min-w-0 space-y-1.5">
           <label htmlFor="district" className={LEGEND}>
             Stadtteil
           </label>

@@ -14,6 +14,7 @@ export function apartmentRow(
     title: "3-Zimmer-Wohnung in Gohlis",
     address: null,
     district: "Gohlis",
+    postcode: "04155",
     rooms: 3,
     sqm: 98.5,
     rent_cold: 1000,

@@ -4,8 +4,9 @@ import type { ApartmentParser, ParsedApartment } from "@/lib/parsers/types";
 /**
  * Immowelt saved-search alert parser, built against the real plain-text
  * alerts in fixtures/emails/immowelt/ (regression fixtures): alert-01 (new
- * listings) and alert-02-alternatives ("Alternative Angebote" with an
- * "Abweichende Lage" label above each listing).
+ * listings), alert-02-alternatives ("Alternative Angebote" with an
+ * "Abweichende Lage" label above each listing) and alert-03-warmmiete (a
+ * single listing priced "1.350 €/Monat Warmmiete" instead of Kaltmiete).
  *
  * It expects LINK-RESOLVED text: the raw email only has personalized
  * click.by.immowelt.de tracking links, and resolving the one above each
@@ -15,12 +16,13 @@ import type { ApartmentParser, ParsedApartment } from "@/lib/parsers/types";
  *
  * One listing, blank lines varying:
  *
- *   1.199 € Kaltmiete                  ← explicitly cold rent
+ *   1.199 € Kaltmiete                  ← explicitly cold rent, or
+ *   1.350 €/Monat Warmmiete            ← explicitly warm rent (never both)
  *   Inkl. Aufzug und neuer Einbauküche!  ← title (may be truncated with "...")
  *   3 Zimmer . 85 m²
  *    Südvorstadt,                        ← district
  *    Leipzig                             ← location context ("Leipzig", "Süd", …); not stored
- *    (04275)                             ← postcode; not stored
+ *    (04275)                             ← postcode
  *   https://www.immowelt.de/expose/<id>  ← UUID or 12-character alphanumeric id
  *   Mehr Informationen                  ← anchor
  *
@@ -28,7 +30,8 @@ import type { ApartmentParser, ParsedApartment } from "@/lib/parsers/types";
  * click.by.immowelt.de tracking line; URL-only lines inside a block are
  * therefore ignored, so a link can never become the title.
  *
- * There is no street address and no warm rent.
+ * There is no street address. Cold and warm rent are each set only from
+ * their explicit label; the other one stays null.
  */
 
 const LISTING_HOST = "www.immowelt.de";
@@ -74,13 +77,24 @@ function germanDecimal(value: string): number | null {
   return number > 0 ? number : null;
 }
 
-/** "1.199 € Kaltmiete" → 1199. Requires the explicit "Kaltmiete" label; else null. */
-export function parseKaltmiete(line: string): number | null {
-  const match = normalizeSpaces(line).match(
-    /^(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?\s*€\s+Kaltmiete$/,
-  );
+const EURO = String.raw`(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?\s*€`;
+const KALTMIETE = new RegExp(`^${EURO}\\s+Kaltmiete$`);
+const WARMMIETE = new RegExp(`^${EURO}/Monat\\s+Warmmiete$`);
+
+function parseEuroLine(line: string, pattern: RegExp): number | null {
+  const match = normalizeSpaces(line).match(pattern);
   if (!match) return null;
   return Number(`${match[1].replaceAll(".", "")}.${match[2] ?? "0"}`);
+}
+
+/** "1.199 € Kaltmiete" → 1199. Requires the explicit "Kaltmiete" label; else null. */
+export function parseKaltmiete(line: string): number | null {
+  return parseEuroLine(line, KALTMIETE);
+}
+
+/** "1.350 €/Monat Warmmiete" → 1350 (alert-03). Requires exactly that form; else null. */
+export function parseWarmmiete(line: string): number | null {
+  return parseEuroLine(line, WARMMIETE);
 }
 
 /** "3,5 Zimmer . 65 m²" → { rooms: 3.5, sqm: 65 }; each part null when malformed. */
@@ -105,6 +119,12 @@ export function districtFromLocation(lines: readonly string[]): string | null {
   if (!LOCATION_CONTEXT.test(context) || !candidate.endsWith(",")) return null;
   const district = candidate.slice(0, -1).trim();
   return district !== "" && district !== CITY && !/[\d,]/.test(district) ? district : null;
+}
+
+/** The postcode from the first "(<5 digits>)" line of the location, e.g. "(04275)" → "04275". */
+export function postcodeFromLocation(lines: readonly string[]): string | null {
+  const line = lines.map(normalizeSpaces).find((candidate) => POSTCODE_LINE.test(candidate));
+  return line ? line.slice(1, -1) : null;
 }
 
 interface Anchor {
@@ -137,7 +157,9 @@ const URL_ONLY_LINE = /^https?:\/\/\S+$/i;
 function parseBlock(lines: readonly string[], listing: Anchor["listing"]): ParsedApartment | null {
   // Tracking links sit between the content lines of real alerts.
   const block = lines.map((line) => (URL_ONLY_LINE.test(line) ? "" : line));
-  const rentIndex = block.findLastIndex((line) => parseKaltmiete(line) !== null);
+  const rentIndex = block.findLastIndex(
+    (line) => parseKaltmiete(line) !== null || parseWarmmiete(line) !== null,
+  );
   if (rentIndex === -1) return null;
 
   const titleIndex = nextContentLine(block, rentIndex + 1);
@@ -153,12 +175,13 @@ function parseBlock(lines: readonly string[], listing: Anchor["listing"]): Parse
     ...listing,
     title,
     rentCold: parseKaltmiete(block[rentIndex]),
+    rentWarm: parseWarmmiete(block[rentIndex]),
     rooms: roomsAndArea?.rooms ?? null,
     sqm: roomsAndArea?.sqm ?? null,
     district: districtFromLocation(block.slice(locationStart)),
+    postcode: postcodeFromLocation(block.slice(locationStart)),
     // Not in this alert format.
     address: null,
-    rentWarm: null,
     floor: null,
     description: null,
     imageUrl: null,
@@ -171,7 +194,7 @@ function textLines(email: IncomingEmail): string[] {
 
 export const immoweltParser: ApartmentParser = {
   name: "immowelt",
-  version: "1.0.2",
+  version: "1.2.0",
 
   canParse(email: IncomingEmail): boolean {
     return findAnchors(textLines(email)).length > 0;

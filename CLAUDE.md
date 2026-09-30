@@ -101,30 +101,34 @@ Pure core (no I/O, never imports Supabase):
   * `PLATFORM_PARSERS` holds `immoscout.ts`, `kleinanzeigen.ts`, `ohneMakler.ts`, `immowelt.ts` and `hildebrandPartner.ts`, in that order. Both parse only the **plain-text** part and understand only the structures in their real fixtures under `fixtures/emails/<platform>/`.
   * `kleinanzeigen.ts`: each `Anzeige ansehen` + `[…/s-anzeige/<digits>]` pair anchors one listing. The title is the standalone line after the `Bild zur Anzeige` image line, and the image comes only from `img.kleinanzeigen.de`. Rooms come only from an unambiguous `<n> Zi.` in the title.
   * `kleinanzeigen.ts` deliberately leaves `rentCold`/`rentWarm` null (the displayed price has no rent type), and `district`, `address` and `sqm` null (not in the alert; "in Connewitz" in the title is not interpreted). "Von Privat" is not stored.
-  * `ohneMakler.ts` (`ohne-makler@1.0.0`, source `ohne-makler`):
+  * `ohneMakler.ts` (`ohne-makler@1.1.0`, source `ohne-makler`):
     * One pipe-delimited row per listing, keyed by `https://www.ohne-makler.net/immobilie/<digits>/`. The URL repeats within a row, and IDs are deduplicated.
     * `rooms` and `sqm` come from the labelled `Zimmer:` and `Wohnfläche:` fields.
     * `address` is set only when the location has street + house number before postcode + city; postcode + city alone gives `null`, and no district is derived.
+    * `postcode` comes from either location form (`04299 Leipzig`, `Musterstraße 9, 04177 Leipzig`), added in 1.1.0.
     * The displayed `Miete` is not labelled cold or warm and deliberately maps to neither rent field.
-  * `immowelt.ts` (`immowelt@1.0.2`) expects **link-resolved** plain text:
+  * `immowelt.ts` (`immowelt@1.2.0`) expects **link-resolved** plain text:
     * Each listing is anchored by `https://www.immowelt.de/expose/<id>` directly above `Mehr Informationen`. The `<id>` is either a UUID or exactly 12 ASCII letters/digits (e.g. `26temfacszzi`), normalized to lowercase. Nothing looser (added in 1.0.2).
     * Raw alerts only contain personalized `click.by.immowelt.de/?qs=…` links, so they are not recognized and end up `unrecognized`.
     * The parser itself makes no network requests. Link resolution happens in the ingestion layer (next bullet).
     * Real mail has a tracking link before every content line; URL-only lines inside a listing block are ignored, so a link can never become the title. This was fixed in 1.0.1.
-    * `rentCold` is trusted because the alert labels it `Kaltmiete` (it may contain NBSP).
+    * Each listing has exactly one labelled price: `<n> € Kaltmiete` → `rentCold`, or `<n> €/Monat Warmmiete` → `rentWarm` (added in 1.2.0). The other rent stays null. Both may contain NBSP.
     * `district` comes directly from the three-line location `<district>,` / `<context>` / `(<postcode>)`. The context line is any plain name (`Leipzig`, `Süd`, …) and is not stored (relaxed from `Leipzig`-only in 1.0.2).
-    * Fixtures: `alert-01.json` (new listings) and `alert-02-alternatives.json` ("Alternative Angebote" with an `Abweichende Lage` label above each listing).
-    * There is no street address (`address` is null), warm rent stays unknown, and the postcode is not stored.
-  * `hildebrandPartner.ts` (`hildebrand-partner@1.0.0`, source `hildebrand-partner`) reads the **fetched results page**, not the email:
+    * Fixtures: `alert-01.json` (new listings), `alert-02-alternatives.json` ("Alternative Angebote" with an `Abweichende Lage` label above each listing) and `alert-03-warmmiete.json` (one listing priced as Warmmiete).
+    * `postcode` comes from the `(<5 digits>)` location line (added in 1.1.0).
+    * There is no street address (`address` is null).
+  * `hildebrandPartner.ts` (`hildebrand-partner@1.1.0`, source `hildebrand-partner`) reads the **fetched results page**, not the email:
     * The search-agent email (sender `wp-immomakler@hildebrand-partner.com`) has no listings, only a private link under the exact label `Suchergebnisse ansehen`. `findResultsLink()` takes the bracketed URL on the next line and validates it with `parseResultsUrl()`: https, host exactly `hildebrand-partner.com`, path exactly `/immobilien/`, non-empty `confirm`, no fragment, credentials, port or delete callback. The edit link (same URL + `#flash-message`) and the delete link are never used.
     * Preprocessing fetches that page and passes it as `email.fetchedPage` (see "Preprocessing"). Without it, `parse()` throws a safe error: `failed`, not `unrecognized`. A Hildebrand mail without the label stays `unrecognized`.
     * WP-ImmoMakler markup, parsed with `node-html-parser` (the only HTML parser; entities decoded): one listing per `.property-container`, deduplicated by Objekt ID. The "Wir haben N Angebote" paginator appears twice and is never used for counting.
     * `sourceId` is the `Objekt ID:` row (e.g. `Kantstr. 37a_WE12`); a card without it is skipped. `sourceUrl` is the public `/immobilien/<slug>/` title link, never the results URL. `rooms`, `sqm` (`Wohnfläche`), `rentCold` (`Kaltmiete`) and `rentWarm` (`Warmmiete`) come from their labelled rows (German numbers, `1.398,00 EUR`). `imageUrl` is the thumbnail `src`.
-    * `district` and `address` are null (the subtitle `04275 Leipzig, Etagenwohnung` has neither; the title is not interpreted). `Verfügbar ab` has no field and is ignored. Without a district there is no fingerprint.
-  * `immoscout.ts` stores `sourceUrl` without its query string (real alerts carry personal tracking parameters) and takes `sourceId` from `/email/expose/<digits>`.
+    * `postcode` is the leading postcode of the subtitle `04275 Leipzig, Etagenwohnung` (added in 1.1.0). `district` and `address` are null (the subtitle has neither; the title is not interpreted). `Verfügbar ab` has no field and is ignored. Without a district there is no fingerprint.
+  * `immoscout.ts` (`immoscout@1.1.0`) stores `sourceUrl` without its query string (real alerts carry personal tracking parameters) and takes `sourceId` from `/email/expose/<digits>`.
+  * `immoscout.ts` reads the district from `<street>, <district>, Leipzig` and, since 1.1.0, from `<district>, Leipzig` (street withheld; seen in real alerts, e.g. `Altlindenau, Leipzig`). `postcode` is always null.
   * `immoscout.ts` sets no structured features. That alert format has no warm rent, so ImmoScout apartments get no fingerprint.
   * Each fixture test is a regression test: changing its expectations needs a deliberate parser migration. It never throws; parser errors are returned as `failures` with status `parsed | unrecognized | failed`.
 * `src/lib/features.ts`: per-feature term lists in `FEATURE_RULES`; any positive match wins, otherwise negated match → `false`, otherwise `null`.
+* `src/lib/location.ts`: the preferred area in `PREFERRED_AREA` (districts Plagwitz, Schleußig, Lindenau, Alt-Lindenau, Neulindenau, Kleinzschocher; postcodes 04229, 04177, 04179). `matchLocation()` compares districts normalized (so `Altlindenau` = `Alt-Lindenau`) and uses the postcode only when the district is unknown: `preferred | nearby | outside | null`. Used by scoring and the dashboard filter.
 * `src/lib/scoring.ts`: all weights in `SCORING`; returns `{ score, rawScore, breakdown }`. Scores are computed on read, not stored. The score is a ranking signal: it starts from a base score, unknown/false values are neutral, building type is not scored, and the result is clamped to 0–100. These weights deliberately supersede the "suggested weights" in `docs/product-spec.md`.
 * `src/lib/fingerprint.ts`: rounding steps in `FINGERPRINT_STEPS`; returns `null` if any input is unknown.
 
@@ -132,6 +136,7 @@ Pure core (no I/O, never imports Supabase):
 
 * Schema source of truth: `supabase/migrations/` (plain SQL, Supabase CLI naming). Never change the schema in the Supabase dashboard without a matching migration.
 * Tables: `emails` (raw inbound mail; `provider_message_id` unique for idempotency; `parse_status` `pending | parsed | unrecognized | failed`) and `apartments` (`email_id` → `emails` `on delete set null`).
+* `postcode` (5-digit text, CHECK-constrained, nullable) was added by `20260930120000_apartment_postcode.sql`. Existing rows stay null until their email is reprocessed.
 * Sources: `immoscout`, `immowelt`, `kleinanzeigen`, `wg-gesucht`, `lwb`, `ohne-makler` (added by `20260924180000_ohne_makler_source.sql`), `hildebrand-partner` (added by `20260928120000_hildebrand_partner_source.sql`), and `other` as the fallback.
 * Value sets are CHECK constraints, not enum types. When a domain enum in `src/lib/domain/` changes, change the matching constraint in a new migration.
 * Feature columns are nullable booleans with no default (null = unknown). `fingerprint` is indexed, not unique, and never used for merging.
@@ -177,9 +182,10 @@ Request flow: `src/proxy.ts` (Basic Auth) → Server Component page → reposito
 URL conventions (all optional, parsed in `query.ts`; invalid values fall back to defaults, and the page redirects to the canonical URL):
 
 * `tab`: `all | new | favorites | applied | viewing`. `favorites` means `isFavorite`, independent of status.
-* `sort`: `score` (default) `| newest | rent | area`. Unknown numbers sort last; ties fall back to score, then newest, then id.
+* `sort`: `newest` (default) `| score | rent | area`. Unknown numbers sort last; ties fall back to score, then newest, then id.
 * `minRooms`, `maxRooms`, `minSqm`, `maxWarmRent`: numbers. They hide only apartments *known* to violate them; unknown values stay visible.
 * `minRooms` defaults to `SCORING.rooms.min` (3), shown as a removable chip; `minRooms=0` (`NO_FILTERS`) switches it off. An empty form field falls back to the default.
+* `preferredArea`: on by default (chip "Wunschgebiet"); hides apartments whose `matchLocation()` is `outside`, unknown locations stay visible. `preferredArea=0` switches it off.
 * `topFloor`, `balcony`, `bathtub`, `kitchen`: set to `1` to require the feature. Only `true` matches; unknown does not.
 * `district`: exact match. `status`: an `ApartmentStatus`.
 

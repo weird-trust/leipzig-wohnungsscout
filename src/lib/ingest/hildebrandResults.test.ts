@@ -117,7 +117,7 @@ describe("pipeline: Hildebrand email → fetched results page → apartments", (
       buildingType: "neubau",
       fingerprint: null,
     });
-    expect(db.email()).toMatchObject({ detectedSource: "hildebrand-partner", parserVersion: "hildebrand-partner@1.0.0" });
+    expect(db.email()).toMatchObject({ detectedSource: "hildebrand-partner", parserVersion: "hildebrand-partner@1.1.0" });
     expect(db.email()?.text).toBe(raw.text);
     expect(db.email()).not.toHaveProperty("fetchedPage");
     expect(JSON.stringify([db.apartments, db.updates])).not.toMatch(/FIXTURE_TOKEN|confirm|property-container/);
@@ -196,7 +196,7 @@ describe("pipeline: Hildebrand email → fetched results page → apartments", (
 
     expect(first).toMatchObject({
       detectedSource: "hildebrand-partner",
-      parserVersion: "hildebrand-partner@1.0.0",
+      parserVersion: "hildebrand-partner@1.1.0",
       parseStatus: "parsed",
       apartments: 1,
     });

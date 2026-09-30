@@ -10,6 +10,8 @@ import {
   parseExposeUrl,
   parseKaltmiete,
   parseRoomsAndArea,
+  parseWarmmiete,
+  postcodeFromLocation,
 } from "@/lib/parsers/immowelt";
 import { detectSource } from "@/lib/sourceDetection";
 
@@ -27,12 +29,12 @@ const apartments = immoweltParser.parse(email);
 const normalized = apartments.map((apartment) => toNewApartment(apartment, "email-row"));
 
 const EXPECTED = [
-  ["0fe5b1ed-db33-4796-bbd8-2c2ee9c9e459", "Inkl. Aufzug und neuer Einbauküche!", 1199, 3, 85, "Südvorstadt"],
-  ["f2e06b10-a30a-4799-b472-374e5023223a", "Wohnen mit Weitblick_helle 3-Zimmer-Dachgeschosswo...", 700, 3, 64.64, "Wahren"],
-  ["bb8aa4d3-357f-4940-9232-e1bc74f095a3", "Erstbezug nach Modernisierung! Inkl. EBK", 929, 3, 64, "Schönefeld-Abtnaundorf"],
-  ["286a483b-704a-4cd4-b45c-e2603bdc0b25", "Maisonette-Wohnung inkl. EBK", 899, 3.5, 65, "Schönefeld-Abtnaundorf"],
-  ["03a6cf24-7b46-4d3d-8dd8-0fb448ddf3a0", "Inkl. Balkon und EBK", 1349, 4, 95, "Gohlis-Süd"],
-  ["baf7a139-5e15-488e-82d8-b939303bf33c", "4-RW inkl. großem Balkon und neuer Einbauküche! *I...", 1349, 4, 94, "Plagwitz"],
+  ["0fe5b1ed-db33-4796-bbd8-2c2ee9c9e459", "Inkl. Aufzug und neuer Einbauküche!", 1199, 3, 85, "Südvorstadt", "04275"],
+  ["f2e06b10-a30a-4799-b472-374e5023223a", "Wohnen mit Weitblick_helle 3-Zimmer-Dachgeschosswo...", 700, 3, 64.64, "Wahren", "04159"],
+  ["bb8aa4d3-357f-4940-9232-e1bc74f095a3", "Erstbezug nach Modernisierung! Inkl. EBK", 929, 3, 64, "Schönefeld-Abtnaundorf", "04347"],
+  ["286a483b-704a-4cd4-b45c-e2603bdc0b25", "Maisonette-Wohnung inkl. EBK", 899, 3.5, 65, "Schönefeld-Abtnaundorf", "04347"],
+  ["03a6cf24-7b46-4d3d-8dd8-0fb448ddf3a0", "Inkl. Balkon und EBK", 1349, 4, 95, "Gohlis-Süd", "04155"],
+  ["baf7a139-5e15-488e-82d8-b939303bf33c", "4-RW inkl. großem Balkon und neuer Einbauküche! *I...", 1349, 4, 94, "Plagwitz", "04229"],
 ] as const;
 
 describe("Immowelt alert-01 (real fixture, link-resolved)", () => {
@@ -41,10 +43,10 @@ describe("Immowelt alert-01 (real fixture, link-resolved)", () => {
     expect(detectSource(email)).toEqual({ source: "immowelt", matchedBy: "sender" });
   });
 
-  it("is selected by parseEmail() as immowelt@1.0.2", () => {
+  it("is selected by parseEmail() as immowelt@1.2.0", () => {
     const outcome = parseEmail(email);
     expect(outcome.status).toBe("parsed");
-    expect(outcome.parserVersion).toBe("immowelt@1.0.2");
+    expect(outcome.parserVersion).toBe("immowelt@1.2.0");
     expect(outcome.failures).toEqual([]);
     expect(outcome.apartments).toEqual(apartments);
   });
@@ -55,9 +57,9 @@ describe("Immowelt alert-01 (real fixture, link-resolved)", () => {
   });
 
   it.each(EXPECTED.map((expected, index) => [expected[1], index] as const))(
-    "keeps %j attached to its own rent, rooms, area and district",
+    "keeps %j attached to its own rent, rooms, area, district and postcode",
     (_, index) => {
-      const [id, title, rentCold, rooms, sqm, district] = EXPECTED[index];
+      const [id, title, rentCold, rooms, sqm, district, postcode] = EXPECTED[index];
       expect(apartments[index]).toEqual({
         source: "immowelt",
         sourceId: id,
@@ -67,6 +69,7 @@ describe("Immowelt alert-01 (real fixture, link-resolved)", () => {
         rooms,
         sqm,
         district,
+        postcode,
         address: null,
         rentWarm: null,
         floor: null,
@@ -166,6 +169,23 @@ describe("parseKaltmiete", () => {
   );
 });
 
+describe("parseWarmmiete", () => {
+  it.each([
+    ["1.350 €/Monat Warmmiete", 1350],
+    ["1.350\u00a0€/Monat Warmmiete", 1350],
+    ["890,50 €/Monat Warmmiete", 890.5],
+  ])("%j → %j", (line, expected) => {
+    expect(parseWarmmiete(line)).toBe(expected);
+  });
+
+  it.each(["1.350 € Warmmiete", "1.350 €/Monat Kaltmiete", "1.199 € Kaltmiete", "ca. 1.350 €/Monat Warmmiete", "1.350 €/Monat"])(
+    "%j → null",
+    (line) => {
+      expect(parseWarmmiete(line)).toBeNull();
+    },
+  );
+});
+
 describe("parseRoomsAndArea", () => {
   it.each([
     ["3 Zimmer . 85 m²", { rooms: 3, sqm: 85 }],
@@ -227,6 +247,22 @@ describe("parseExposeUrl", () => {
   });
 });
 
+describe("postcodeFromLocation", () => {
+  it("reads the parenthesized postcode line", () => {
+    expect(postcodeFromLocation(["", " Südvorstadt, ", " Leipzig", " (04275)"])).toBe("04275");
+    expect(postcodeFromLocation(["Dölitz-Dösen,", "Süd", "(04279)"])).toBe("04279");
+  });
+
+  it.each<[string, string[]]>([
+    ["no postcode line", ["Südvorstadt,", "Leipzig"]],
+    ["postcode without parentheses", ["Südvorstadt,", "Leipzig", "04275"]],
+    ["four digits", ["Südvorstadt,", "Leipzig", "(0427)"]],
+    ["text around the postcode", ["Südvorstadt,", "Leipzig (04275)"]],
+  ])("returns null for %s", (_, lines) => {
+    expect(postcodeFromLocation(lines)).toBeNull();
+  });
+});
+
 describe("districtFromLocation", () => {
   it("takes the comma line before Leipzig and postcode, trimmed", () => {
     expect(districtFromLocation(["", " Südvorstadt, ", " ", " Leipzig", " (04275)", "  "])).toBe("Südvorstadt");
@@ -263,10 +299,10 @@ describe("Immowelt alert-02-alternatives (real fixture, link-resolved)", () => {
   const parsed = immoweltParser.parse(alternatives);
   const stored = parsed.map((apartment) => toNewApartment(apartment, "email-row"));
 
-  it("is parsed by immowelt@1.0.2", () => {
+  it("is parsed by immowelt@1.2.0", () => {
     expect(detectSource(alternatives)).toEqual({ source: "immowelt", matchedBy: "sender" });
     const outcome = parseEmail(alternatives);
-    expect(outcome).toMatchObject({ status: "parsed", parserVersion: "immowelt@1.0.2", failures: [] });
+    expect(outcome).toMatchObject({ status: "parsed", parserVersion: "immowelt@1.2.0", failures: [] });
     expect(outcome.apartments).toEqual(parsed);
   });
 
@@ -277,7 +313,7 @@ describe("Immowelt alert-02-alternatives (real fixture, link-resolved)", () => {
     ]);
   });
 
-  it("keeps each title with its own rent, rooms, area and district", () => {
+  it("keeps each title with its own rent, rooms, area, district and postcode", () => {
     const base = { source: "immowelt", address: null, rentWarm: null, floor: null, description: null, imageUrl: null };
     expect(parsed).toEqual([
       {
@@ -289,6 +325,7 @@ describe("Immowelt alert-02-alternatives (real fixture, link-resolved)", () => {
         rooms: 3,
         sqm: 75,
         district: "Dölitz-Dösen", // "Süd" context line, not stored
+        postcode: "04279",
       },
       {
         ...base,
@@ -299,6 +336,7 @@ describe("Immowelt alert-02-alternatives (real fixture, link-resolved)", () => {
         rooms: 3,
         sqm: 92,
         district: "Reudnitz-Thonberg",
+        postcode: "04317",
       },
     ]);
   });
@@ -324,5 +362,44 @@ describe("Immowelt alert-02-alternatives (real fixture, link-resolved)", () => {
     expect(alternatives.text).not.toMatch(/click\.by\.immowelt|qs=/);
     expect(alternatives.html).toBeNull();
     expect(JSON.stringify(stored)).not.toMatch(/click\.by\.immowelt|qs=|wl-cdp/);
+  });
+});
+
+describe("Immowelt alert-03-warmmiete (real fixture, link-resolved)", () => {
+  const warm = loadFixture("fixtures/emails/immowelt/alert-03-warmmiete.json");
+  const parsed = immoweltParser.parse(warm);
+
+  it("is parsed by immowelt@1.2.0", () => {
+    expect(detectSource(warm)).toEqual({ source: "immowelt", matchedBy: "sender" });
+    const outcome = parseEmail(warm);
+    expect(outcome).toMatchObject({ status: "parsed", parserVersion: "immowelt@1.2.0", failures: [] });
+    expect(outcome.apartments).toEqual(parsed);
+  });
+
+  it("stores the labelled Warmmiete as warm rent and leaves cold rent unknown", () => {
+    expect(warm.text).toContain("1.350\u00a0€/Monat Warmmiete");
+    expect(parsed).toEqual([
+      {
+        source: "immowelt",
+        sourceId: "c05c39d3-2cf2-49ae-93a6-156aa83ff518",
+        sourceUrl: "https://www.immowelt.de/expose/c05c39d3-2cf2-49ae-93a6-156aa83ff518",
+        title: "Wohnen auf Zeit mit 2 separaten Schlafzimmern / ST...",
+        rentCold: null,
+        rentWarm: 1350,
+        rooms: 3,
+        sqm: 70,
+        district: "Altlindenau",
+        postcode: "04177",
+        address: null,
+        floor: null,
+        description: null,
+        imageUrl: null,
+      },
+    ]);
+  });
+
+  it("does not turn the footer's \"0 €\" into a listing", () => {
+    expect(warm.text).toContain("Der Preis von 0 € gilt");
+    expect(parsed).toHaveLength(1);
   });
 });

@@ -30,6 +30,8 @@ export interface DashboardFilters {
   maxRooms: number | null;
   minSqm: number | null;
   maxWarmRent: number | null;
+  /** Hide apartments known to be outside `PREFERRED_AREA`; unknown locations stay visible. */
+  preferredArea: boolean;
   /** Features that must be explicitly true. */
   require: readonly RequirableFeature[];
   district: string | null;
@@ -48,6 +50,7 @@ export const NO_FILTERS: DashboardFilters = {
   maxRooms: null,
   minSqm: null,
   maxWarmRent: null,
+  preferredArea: false,
   require: [],
   district: null,
   status: null,
@@ -55,16 +58,18 @@ export const NO_FILTERS: DashboardFilters = {
 
 /**
  * The view without URL parameters: apartments known to have fewer rooms than
- * the target range are hidden. Unknown room counts stay visible.
+ * the target range or known to be outside the preferred area are hidden.
+ * Unknown values stay visible. `preferredArea=0` switches the area off.
  */
 export const DEFAULT_FILTERS: DashboardFilters = {
   ...NO_FILTERS,
   minRooms: SCORING.rooms.min,
+  preferredArea: true,
 };
 
 export const DEFAULT_QUERY: DashboardQuery = {
   tab: "all",
-  sort: "score",
+  sort: "newest",
   filters: DEFAULT_FILTERS,
 };
 
@@ -117,6 +122,7 @@ export function parseDashboardQuery(params: SearchParams): DashboardQuery {
     sort: oneOf(SORTS, get("sort"), DEFAULT_QUERY.sort),
     filters: {
       ...numbers,
+      preferredArea: get("preferredArea") !== "0",
       require,
       district,
       status:
@@ -138,6 +144,7 @@ export function dashboardHref(query: DashboardQuery): string {
     const value = filters[key];
     if (value !== null && value !== DEFAULT_FILTERS[key]) params.set(key, String(value));
   }
+  if (!filters.preferredArea) params.set("preferredArea", "0");
   for (const [param, feature] of Object.entries(FEATURE_FILTERS)) {
     if (filters.require.includes(feature)) params.set(param, "1");
   }
@@ -175,6 +182,7 @@ export function withQuery(
 export function hasActiveFilters(filters: DashboardFilters): boolean {
   return (
     NUMBER_PARAMS.some((key) => filters[key] !== NO_FILTERS[key]) ||
+    filters.preferredArea ||
     filters.require.length > 0 ||
     filters.district !== null ||
     filters.status !== null

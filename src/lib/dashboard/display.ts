@@ -90,6 +90,11 @@ const dateTime = new Intl.DateTimeFormat("de-DE", {
   timeZone: "Europe/Berlin",
 });
 
+/** The district, else "PLZ <postcode>", else null. */
+export function locationLabel(apartment: Pick<Apartment, "district" | "postcode">): string | null {
+  return apartment.district ?? (apartment.postcode ? `PLZ ${apartment.postcode}` : null);
+}
+
 export function formatEuro(value: number): string {
   return euro.format(value);
 }

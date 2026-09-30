@@ -42,6 +42,7 @@ describe("toNewApartment", () => {
         title: "Dachgeschosswohnung",
         address: null,
         district: "Südvorstadt",
+        postcode: null,
         rooms: 3,
         sqm: 100,
         rentCold: null,

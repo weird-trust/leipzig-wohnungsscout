@@ -18,7 +18,7 @@ import { detectSource } from "@/lib/sourceDetection";
  *   .property-container
  *     .property-thumbnail img[src]            ← imageUrl
  *     .property-title a[href]                 ← title, sourceUrl
- *     .property-subtitle                      ← "04275 Leipzig, Etagenwohnung" (not used)
+ *     .property-subtitle                      ← "04275 Leipzig, Etagenwohnung" (postcode only)
  *     .property-data .row (.dt label / .dd value)
  *        Objekt ID: Kantstr. 37a_WE12         ← sourceId (card skipped without it)
  *        Zimmer: 3 · Wohnfläche: 85,64 m²
@@ -119,6 +119,11 @@ export function parseRooms(value: string): number | null {
   return germanDecimal(clean(value));
 }
 
+/** "04275 Leipzig, Etagenwohnung" → "04275": a leading postcode + city; anything else → null. */
+export function postcodeFromSubtitle(value: string): string | null {
+  return clean(value).match(/^(\d{5})\s+\p{L}[\p{L} .-]*(?:,|$)/u)?.[1] ?? null;
+}
+
 /** "85,64 m²" → 85.64. */
 export function parseArea(value: string): number | null {
   const match = clean(value).match(/^(\S+)\s*m²$/);
@@ -176,6 +181,7 @@ function parseCard(card: HTMLElement): ParsedApartment | null {
     rentCold: parseEuro(value("Kaltmiete")),
     rentWarm: parseEuro(value("Warmmiete")),
     imageUrl: httpUrl(card.querySelector(".property-thumbnail img")?.getAttribute("src")),
+    postcode: postcodeFromSubtitle(card.querySelector(".property-subtitle")?.text ?? ""),
     // Not in the results card ("04275 Leipzig, Etagenwohnung" has neither).
     district: null,
     address: null,
@@ -203,7 +209,7 @@ function isHildebrand(email: IncomingEmail): boolean {
 
 export const hildebrandPartnerParser: ApartmentParser = {
   name: "hildebrand-partner",
-  version: "1.0.0",
+  version: "1.1.0",
 
   canParse(email: IncomingEmail): boolean {
     return isHildebrand(email) && (email.fetchedPage?.source === "hildebrand-partner" || findResultsLink(email.text).kind !== "none");

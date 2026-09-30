@@ -5,6 +5,7 @@ import {
   formatFloor,
   formatRooms,
   formatSqm,
+  locationLabel,
   paragraphs,
   primaryRent,
   rentPerSqm,
@@ -48,6 +49,14 @@ describe("formatting", () => {
 
   it("maps tri-state values", () => {
     expect([true, false, null].map(triStateKey)).toEqual(["yes", "no", "unknown"]);
+  });
+});
+
+describe("locationLabel", () => {
+  it("prefers the district and falls back to the postcode", () => {
+    expect(locationLabel({ district: "Plagwitz", postcode: "04229" })).toBe("Plagwitz");
+    expect(locationLabel({ district: null, postcode: "04229" })).toBe("PLZ 04229");
+    expect(locationLabel({ district: null, postcode: null })).toBeNull();
   });
 });
 

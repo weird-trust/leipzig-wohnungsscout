@@ -13,6 +13,7 @@ import {
   parseResultsPage,
   parseResultsUrl,
   parseRooms,
+  postcodeFromSubtitle,
 } from "@/lib/parsers/hildebrandPartner";
 import { detectSource } from "@/lib/sourceDetection";
 
@@ -50,6 +51,7 @@ const EXPECTED = {
   rentCold: 1398,
   rentWarm: 1613,
   imageUrl: IMAGE_URL,
+  postcode: "04275", // subtitle "04275 Leipzig, Etagenwohnung"
   district: null,
   address: null,
   floor: null,
@@ -164,9 +166,9 @@ describe("Hildebrand & Partner search-results-01 page (real fixture)", () => {
   const apartments = parseResultsPage(page);
   const [stored] = apartments.map((apartment) => toNewApartment(apartment, "email-row"));
 
-  it("is parsed by parseEmail() as hildebrand-partner@1.0.0 once the page is attached", () => {
+  it("is parsed by parseEmail() as hildebrand-partner@1.1.0 once the page is attached", () => {
     const outcome = parseEmail(withPage);
-    expect(outcome).toMatchObject({ status: "parsed", parserVersion: "hildebrand-partner@1.0.0", failures: [] });
+    expect(outcome).toMatchObject({ status: "parsed", parserVersion: "hildebrand-partner@1.1.0", failures: [] });
     expect(outcome.apartments).toEqual(apartments);
   });
 
@@ -286,6 +288,14 @@ describe("value parsing", () => {
     expect(parseArea("61 m²")).toBe(61);
     expect(parseArea("85.64 m²")).toBeNull();
     expect(parseArea("85,64")).toBeNull();
+  });
+
+  it("reads the postcode only from a leading \"<postcode> <city>\" subtitle", () => {
+    expect(postcodeFromSubtitle("04275 Leipzig, Etagenwohnung")).toBe("04275");
+    expect(postcodeFromSubtitle(" 04229\u00a0Leipzig ")).toBe("04229");
+    for (const value of ["Leipzig, Etagenwohnung", "0427 Leipzig", "Etagenwohnung, 04275 Leipzig", "04275", ""]) {
+      expect(postcodeFromSubtitle(value)).toBeNull();
+    }
   });
 
   it("accepts only public listing URLs as sourceUrl", () => {

@@ -114,6 +114,7 @@ function parseBlock(block: readonly string[], link: Anchor["link"]): ParsedApart
     // Not provided by this alert format (the displayed price has no rent type).
     address: null,
     district: null,
+    postcode: null,
     sqm: null,
     rentCold: null,
     rentWarm: null,

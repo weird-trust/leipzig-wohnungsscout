@@ -11,6 +11,7 @@ export function makeApartment(overrides: Partial<Apartment> = {}): Apartment {
     title: "3-Zimmer-Wohnung",
     address: null,
     district: null,
+    postcode: null,
     rooms: null,
     sqm: null,
     rentCold: null,

@@ -10,7 +10,7 @@ import { senderDomain } from "@/lib/sourceDetection";
  *
  *   Titel: <title>
  *   Link: https://push.search.is24.de/email/expose/<id>?<tracking>
- *   Adresse: <street>, <district>, Leipzig
+ *   Adresse: <street>, <district>, Leipzig   (or "<district>, Leipzig" without street)
  *   Kaltmiete: 1.099 €
  *   Wohnfläche: 77 m²
  *   Zimmer: 3
@@ -81,11 +81,14 @@ export function parseListingLink(value: string | undefined): {
   return { sourceUrl: `${url.origin}${url.pathname}`, sourceId: id ?? null };
 }
 
-/** "<street>, <district>, Leipzig" → district; any other shape → null. */
+/**
+ * "<street>, <district>, Leipzig" or "<district>, Leipzig" (street withheld,
+ * seen in real alerts) → district; any other shape → null.
+ */
 export function districtFromAddress(address: string | null): string | null {
   if (!address) return null;
   const parts = address.split(",").map((part) => part.trim());
-  if (parts.length < 3 || parts.at(-1) !== "Leipzig") return null;
+  if (parts.length < 2 || parts.at(-1) !== "Leipzig") return null;
   const district = parts.at(-2) ?? "";
   return district !== "" && !/\d/.test(district) ? district : null;
 }
@@ -145,6 +148,8 @@ function parseBlock(block: readonly string[]): ParsedApartment | null {
     title,
     address,
     district: districtFromAddress(address),
+    // "<street>, <district>, Leipzig" has no postcode.
+    postcode: null,
     rooms: parseRoomCount(fields.get("Zimmer")),
     sqm: parseSquareMeters(fields.get("Wohnfläche")),
     rentCold: parseGermanEuro(fields.get("Kaltmiete")),
@@ -158,7 +163,7 @@ function parseBlock(block: readonly string[]): ParsedApartment | null {
 
 export const immoscoutParser: ApartmentParser = {
   name: "immoscout",
-  version: "1.0.1",
+  version: "1.1.0",
 
   canParse(email: IncomingEmail): boolean {
     if (!email.text || !/^\s*Titel:/m.test(email.text)) return false;

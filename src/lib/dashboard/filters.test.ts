@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { matchesFilters, matchesTab } from "@/lib/dashboard/filters";
-import { DEFAULT_FILTERS, type DashboardFilters } from "@/lib/dashboard/query";
+import { DEFAULT_FILTERS, NO_FILTERS, type DashboardFilters } from "@/lib/dashboard/query";
 import { makeApartment } from "@/lib/dashboard/testing/apartments";
 
 const filters = (overrides: Partial<DashboardFilters>): DashboardFilters => ({
-  ...DEFAULT_FILTERS,
+  ...NO_FILTERS,
   ...overrides,
 });
 
@@ -93,6 +93,31 @@ describe("matchesFilters: numbers", () => {
     expect(
       matchesFilters(makeApartment({ rentCold: 1400, rentWarm: 1700 }), filters({ maxWarmRent: 1500 })),
     ).toBe(false);
+  });
+});
+
+describe("matchesFilters: preferred area", () => {
+  const area = filters({ preferredArea: true });
+
+  it("keeps preferred districts, spelled either way, and preferred postcodes", () => {
+    for (const district of ["Plagwitz", "Schleußig", "Schleussig", "Altlindenau", "Alt-Lindenau", "Kleinzschocher"]) {
+      expect(matchesFilters(makeApartment({ district }), area)).toBe(true);
+    }
+    expect(matchesFilters(makeApartment({ postcode: "04229" }), area)).toBe(true);
+  });
+
+  it("hides apartments known to be elsewhere, by district or (without one) by postcode", () => {
+    expect(matchesFilters(makeApartment({ district: "Gohlis-Süd" }), area)).toBe(false);
+    expect(matchesFilters(makeApartment({ postcode: "04318" }), area)).toBe(false);
+  });
+
+  it("keeps unknown locations visible", () => {
+    expect(matchesFilters(makeApartment({ district: null, postcode: null }), area)).toBe(true);
+  });
+
+  it("is part of the default filters and shows everything when switched off", () => {
+    expect(matchesFilters(makeApartment({ district: "Gohlis-Süd" }), DEFAULT_FILTERS)).toBe(false);
+    expect(matchesFilters(makeApartment({ district: "Gohlis-Süd" }), NO_FILTERS)).toBe(true);
   });
 });
 

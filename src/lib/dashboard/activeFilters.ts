@@ -34,6 +34,9 @@ export function activeFilters(query: DashboardQuery): ActiveFilter[] {
       removeHref: without({ maxWarmRent: null }),
     });
   }
+  if (filters.preferredArea) {
+    result.push({ label: "Wunschgebiet", removeHref: without({ preferredArea: false }) });
+  }
   for (const feature of filters.require) {
     result.push({
       label: `✓ ${FEATURE_LABELS[feature]}`,

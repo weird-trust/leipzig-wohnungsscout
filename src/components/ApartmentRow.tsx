@@ -7,6 +7,7 @@ import {
   formatDateTime,
   formatRooms,
   formatSqm,
+  locationLabel,
   primaryRent,
   rentPerSqm,
   SOURCE_LABELS,
@@ -35,7 +36,7 @@ export function ApartmentRow({ item, now }: { item: ScoredApartment; now: Date }
     <article className="listing group/row relative border-t border-line py-8 sm:py-10">
       <div className="min-w-0 [grid-area:head]">
         <p className="text-sm font-medium tracking-[0.14em] text-muted uppercase">
-          {apartment.district ?? <span className="text-faint">Stadtteil unbekannt</span>}
+          {locationLabel(apartment) ?? <span className="text-faint">Lage unbekannt</span>}
         </p>
         <h2 className="mt-2 text-lg font-medium tracking-[-0.015em] text-balance">
           <Link

@@ -1,4 +1,5 @@
 import type { Apartment } from "@/lib/domain/apartment";
+import { matchLocation } from "@/lib/location";
 
 /**
  * All scoring weights. The score is a ranking signal, not an eligibility
@@ -9,6 +10,8 @@ import type { Apartment } from "@/lib/domain/apartment";
  */
 export const SCORING = {
   base: 25,
+  /** Area in `PREFERRED_AREA` (src/lib/location.ts); unknown location is neutral. */
+  location: { preferredDistrict: 20, nearbyPostcode: 10, outside: -10 },
   /** Inclusive range. */
   rooms: { min: 3, max: 4, inRange: 10, outOfRange: -10 },
   /** Checked top to bottom; the first bucket that applies wins. Above 130 m²: 0. */
@@ -37,6 +40,8 @@ export const MAX_SCORE = 100;
 
 export type ScoringInput = Pick<
   Apartment,
+  | "district"
+  | "postcode"
   | "rooms"
   | "sqm"
   | "rentWarm"
@@ -49,6 +54,9 @@ export type ScoringInput = Pick<
 
 export type ScoreRule =
   | "base"
+  | "locationPreferred"
+  | "locationNearby"
+  | "locationOutside"
   | "roomsInRange"
   | "roomsOutOfRange"
   | "areaTooSmall"
@@ -83,6 +91,28 @@ const euro = (value: number) => `${value.toLocaleString("de-DE")} €`;
 
 function inRange(value: number, range: { min: number; max: number }): boolean {
   return value >= range.min && value <= range.max;
+}
+
+function locationItem(input: Pick<ScoringInput, "district" | "postcode">): ScoreItem | null {
+  const { preferredDistrict, nearbyPostcode, outside } = SCORING.location;
+  switch (matchLocation(input)) {
+    case "preferred":
+      return {
+        rule: "locationPreferred",
+        label: `Wunschviertel (${input.district?.trim()})`,
+        points: preferredDistrict,
+      };
+    case "nearby":
+      return {
+        rule: "locationNearby",
+        label: `PLZ im Wunschgebiet (${input.postcode})`,
+        points: nearbyPostcode,
+      };
+    case "outside":
+      return { rule: "locationOutside", label: "Außerhalb des Wunschgebiets", points: outside };
+    case null:
+      return null;
+  }
 }
 
 function roomsItem(rooms: number | null): ScoreItem | null {
@@ -159,6 +189,7 @@ function featureItems(input: ScoringInput): ScoreItem[] {
 export function scoreApartment(input: ScoringInput): ScoreResult {
   const breakdown = [
     { rule: "base", label: "Basis", points: SCORING.base } satisfies ScoreItem,
+    locationItem(input),
     roomsItem(input.rooms),
     areaItem(input.sqm),
     warmRentItem(input.rentWarm),

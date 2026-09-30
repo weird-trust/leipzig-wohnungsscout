@@ -22,6 +22,7 @@ const listing: ParsedApartment = {
   title: "3-Zimmer-Wohnung in Gohlis",
   address: null,
   district: "Gohlis",
+  postcode: null,
   rooms: 3,
   sqm: 98,
   rentCold: null,

@@ -35,10 +35,10 @@ const NOTE = "Synthetischer Testdatensatz.";
 export const SYNTHETIC_APARTMENTS: readonly SyntheticApartment[] = [
   {
     sourceId: "synthetic-ideal-top-floor",
-    title: "3,5-Zimmer-Dachgeschosswohnung in der Südvorstadt",
+    title: "3,5-Zimmer-Dachgeschosswohnung in Plagwitz",
     description: `${NOTE} Helle Wohnung im Dachgeschoss eines sanierten Altbaus mit Aufzug. Große Wohnküche, Bad mit Badewanne, Südbalkon.`,
     address: "Beispielstraße 12",
-    district: "Südvorstadt",
+    district: "Plagwitz",
     rooms: 3.5,
     sqm: 102,
     rentCold: 1180,
@@ -186,6 +186,7 @@ export function toNewApartment(
     title: entry.title,
     address: entry.address,
     district: entry.district,
+    postcode: null,
     rooms: entry.rooms,
     sqm: entry.sqm,
     rentCold: entry.rentCold,

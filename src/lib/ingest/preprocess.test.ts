@@ -48,7 +48,7 @@ describe("preprocessing", () => {
 });
 
 describe("ingestion with Immowelt link resolution (integration)", () => {
-  it("raw-style email → mocked redirects → immowelt@1.0.2 → six apartments; raw email stored unchanged", async () => {
+  it("raw-style email → mocked redirects → immowelt@1.2.0 → six apartments; raw email stored unchanged", async () => {
     const email = rawImmoweltEmail();
     const fake = fakeTracker(allListingRoutes());
     const db = memoryStore();
@@ -57,7 +57,7 @@ describe("ingestion with Immowelt link resolution (integration)", () => {
 
     expect(result).toMatchObject({ outcome: "processed", parseStatus: "parsed", apartments: 6 });
     expect(fake.requested).toHaveLength(6);
-    expect(db.updates.at(-1)).toMatchObject({ parseStatus: "parsed", parserVersion: "immowelt@1.0.2" });
+    expect(db.updates.at(-1)).toMatchObject({ parseStatus: "parsed", parserVersion: "immowelt@1.2.0" });
     expect(db.email()?.text).toBe(email.text); // the stored raw text keeps its trackers
     expect(db.apartments.map((a) => a.sourceUrl)).toEqual(EXPOSE_IDS.map(expose));
     expect(db.apartments.map((a) => [a.title, a.rentCold, a.rooms, a.sqm, a.district])).toEqual([
@@ -114,7 +114,7 @@ describe("ingestion with Immowelt link resolution (integration)", () => {
     const first = await reprocessStoredEmail("email_raw", db.store, parseEmail, createPreprocessor(fakeTracker(allListingRoutes())));
     const second = await reprocessStoredEmail("email_raw", db.store, parseEmail, createPreprocessor(fakeTracker(allListingRoutes())));
 
-    expect(first).toMatchObject({ parseStatus: "parsed", parserVersion: "immowelt@1.0.2", apartments: 6 });
+    expect(first).toMatchObject({ parseStatus: "parsed", parserVersion: "immowelt@1.2.0", apartments: 6 });
     expect(second.apartments).toBe(6);
     expect(db.apartments).toHaveLength(6); // upserts, no duplicates
     expect(db.email()?.text).toBe(raw.text);
